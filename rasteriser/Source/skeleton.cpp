@@ -171,7 +171,7 @@ void Interpolate( ivec2 a, ivec2 b, vector<ivec2>& result )
        vec2 current( a );
        for( int i=0; i<N; ++i )
        {
-           result[i] = current;
+           result[i] = round(current);
            current += step;
        }
 }
@@ -303,7 +303,7 @@ bool Update(vec4& cameraPos)
     break;
         case SDLK_e:
     /* Move camera backwards */
-    cameraPos.z += .15;
+    cameraPos.z -= .15;
     break;
 	      case SDLK_ESCAPE:
 		/* Move camera quit */
