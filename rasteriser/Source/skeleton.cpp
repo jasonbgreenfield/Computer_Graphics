@@ -21,19 +21,29 @@ SDL_Event event;
 #define FOCAL_LENGTH 326.274
 
 /* ----------------------------------------------------------------------------*/
-/* FUNCTIONS                                                                   */
+/* FUNCTIONS
+   */
+struct Pixel
+{
+  int x;
+  int y;
+  float zinv;
+};
 
 bool Update(vec4& cameraPos);
 void Draw(screen* screen, vec4 cameraPos);
-void VertexShader( const vec4& v, ivec2& p, vec4 cameraPos );
-void Interpolate( ivec2 a, ivec2 b, vector<ivec2>& result );
+void VertexShader( const vec4& v, Pixel& p, vec4 cameraPos );
+void Interpolate( Pixel a, Pixel b, vector<Pixel>& result );
 void DrawLineSDL( screen* surface, ivec2 a, ivec2 b, vec3 color );
 void DrawPolygonEdges( const vector<vec4>& vertices, screen* screen, vec4 cameraPos );
-void ComputePolygonRows(const vector<ivec2>& vertexPixels, vector<ivec2>& leftPixels, vector<ivec2>& rightPixels );
+void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPixels, vector<Pixel>& rightPixels );
 int max3(int a, int b, int c);
 int min3(int a, int b, int c);
-void DrawPolygonRows( screen* screen, const vector<ivec2>& leftPixels, const vector<ivec2>& rightPixels, vec3 color );
+void DrawPolygonRows( screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels, vec3 color );
 void DrawPolygon( screen* screen, const vector<vec4>& vertices, vec3 color, vec4 cameraPos );
+
+float depthBuffer[SCREEN_HEIGHT][SCREEN_WIDTH];
+
 
 
 int main( int argc, char* argv[] )
@@ -68,6 +78,7 @@ void Draw(screen* screen, vec4 cameraPos)
        vertices[0] = triangles[i].v0;
        vertices[1] = triangles[i].v1;
        vertices[2] = triangles[i].v2;
+
 
        // // produces bare skeleton structure of triangles
        // DrawPolygonEdges(vertices, screen, cameraPos);
@@ -125,18 +136,19 @@ void Draw(screen* screen, vec4 cameraPos)
 void DrawPolygon( screen* screen, const vector<vec4>& vertices, vec3 color, vec4 cameraPos )
 {
        int V = vertices.size();
-       vector<ivec2> vertexPixels( V );
-       for( int i=0; i<V; ++i )
-           VertexShader( vertices[i], vertexPixels[i], cameraPos );
+       vector<Pixel> vertexPixels( V );
+       for( int i=0; i<V; ++i ){
+         VertexShader( vertices[i], vertexPixels[i], cameraPos );
+       }
 
-       vector<ivec2> leftPixels;
-       vector<ivec2> rightPixels;
+       vector<Pixel> leftPixels;
+       vector<Pixel> rightPixels;
 
        ComputePolygonRows( vertexPixels, leftPixels, rightPixels );
        DrawPolygonRows( screen, leftPixels, rightPixels, color );
 }
 
-void DrawPolygonRows( screen* screen, const vector<ivec2>& leftPixels, const vector<ivec2>& rightPixels, vec3 color )
+void DrawPolygonRows( screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels, vec3 color )
 {
   for(int i = 0; i < leftPixels.size(); i++){
     int start = leftPixels[i].x;
@@ -144,35 +156,39 @@ void DrawPolygonRows( screen* screen, const vector<ivec2>& leftPixels, const vec
     int yHeight = leftPixels[i].y;
 
     for(int j = 0; j < (end - start + 1); j++){
-
-      PutPixelSDL( screen, start + j, yHeight, color );
+      if(leftPixels[j].zinv > depthBuffer[leftPixels[j].x][leftPixels[j].y]){
+        PutPixelSDL( screen, start + j, yHeight, color );
+        depthBuffer[leftPixels[j].x][leftPixels[j].y] = leftPixels[j].zinv;
+      }
     }
   }
 }
 
-void DrawLineSDL( screen* screen, ivec2 a, ivec2 b, vec3 color )
+void DrawLineSDL( screen* screen, Pixel a, Pixel b, vec3 color )
 {
 
   ivec2 delta = glm::abs( a - b );
   int pixels = glm::max( delta.x, delta.y ) + 1;
-  vector<ivec2> line( pixels );
+  vector<Pixel> line( pixels );
   Interpolate( a, b, line );
 
   for(int i = 0; i < line.size(); i++){
     PutPixelSDL( screen, line[i].x, line[i].y, color );
   }
-
 }
 
-void Interpolate( ivec2 a, ivec2 b, vector<ivec2>& result )
+void Interpolate( Pixel a, Pixel b, vector<Pixel>& result )
 {
        int N = result.size();
-       vec2 step = vec2(b-a) / float(max(N-1,1));
-       vec2 current( a );
+       Pixel step( ((b.x-a.x)/float(max(N-1,1))) , ((b.y-a.y)/float(max(N-1,1))) , ((b.zinv-a.zinv)/float(max(N-1,1))) ) ;
+       Pixel current(a);
        for( int i=0; i<N; ++i )
        {
+           float q = (float)i/(float)N;
+           current.zinv = 1/a.zinv*(1-q) + 1/b.zinv*(q);
            result[i] = round(current);
-           current += step;
+           current.x += step.x;
+           current.y += step.y;
        }
 }
 
@@ -180,10 +196,12 @@ void DrawPolygonEdges( const vector<vec4>& vertices, screen* screen, vec4 camera
 {
     int V = vertices.size();
     // Transform each vertex from 3D world position to 2D image position:
-    vector<ivec2> projectedVertices( V );
+    vector<Pixel> projectedVertices( V );
     for( int i=0; i<V; ++i ){
         VertexShader( vertices[i], projectedVertices[i], cameraPos );
+
     }
+
     // Loop over all vertices and draw the edge from it to the next vertex:
     for( int i=0; i<V; ++i ){
       int j = (i+1)%V; // The next vertex
@@ -192,7 +210,7 @@ void DrawPolygonEdges( const vector<vec4>& vertices, screen* screen, vec4 camera
     }
 }
 
-void ComputePolygonRows(const vector<ivec2>& vertexPixels, vector<ivec2>& leftPixels, vector<ivec2>& rightPixels )
+void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPixels, vector<Pixel>& rightPixels )
 {
   // 1. Find max and min y-value of the polygon
   //    and compute the number of rows it occupies.
@@ -229,7 +247,7 @@ void ComputePolygonRows(const vector<ivec2>& vertexPixels, vector<ivec2>& leftPi
 
     ivec2 delta = glm::abs( vertexPixels[i] - vertexPixels[ (i+1)%3 ] );
     int pixels = glm::max( delta.x, delta.y ) + 1;
-    vector<ivec2> line( pixels );
+    vector<Pixel> line( pixels );
     Interpolate( vertexPixels[i], vertexPixels[ (i+1)%3 ], line );
 
     for(int j = 0; j < line.size(); j++){
@@ -245,8 +263,9 @@ void ComputePolygonRows(const vector<ivec2>& vertexPixels, vector<ivec2>& leftPi
 
 }
 
-void VertexShader( const vec4& v, ivec2& p, vec4 cameraPos )
+void VertexShader( const vec4& v, Pixel& p, vec4 cameraPos )
 {
+  p.zinv = 1/v.z;
   // translate first: P' = P - C
   float x = v.x - cameraPos.x;
   float y = v.y - cameraPos.y;
