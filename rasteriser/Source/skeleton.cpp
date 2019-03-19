@@ -130,10 +130,10 @@ void Draw(screen* screen, vec4 cameraPos)
         // ComputePolygonRows(polygonVertices, leftPixels, rightPixels);
         // DrawRows(screen, leftPixels, rightPixels);
         // //end of outdated stuff
-        cout << "drawing triangle: " << i << endl;
+        //cout << "drawing triangle: " << i << endl;
         vec3 currentColor = triangles[i].color;
         DrawPolygon(screen, vertices, currentColor, cameraPos);
-        cout << "finished drawing polygon" << endl;
+        //cout << "finished drawing polygon" << endl;
 
     }
 
@@ -162,7 +162,7 @@ void DrawPolygon( screen* screen, const vector<vec4>& vertices, vec3 color, vec4
 void DrawPolygonRows( screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels, vec3 color )
 {
   for(int i = 0; i < leftPixels.size(); i++){
-    cout << "        start drawing row:" << i << endl;
+    //cout << "        start drawing row:" << i << endl;
 
     int start = leftPixels[i].x;
     int end = rightPixels[i].x;
@@ -180,7 +180,7 @@ void DrawPolygonRows( screen* screen, const vector<Pixel>& leftPixels, const vec
            //<< " , xyz: "<< row[j].x << "," << row[j].y << "," << row[j].zinv << endl;
       if(row[j].zinv > depthBuffer[row[j].x][row[j].y]){
         //cout << "          draw pixel & update buffer start" << endl;
-        PutPixelSDL( screen, row[j].x , row[j].y, color );
+        PutPixelSDL( screen , row[j].x , row[j].y , color );
         depthBuffer[row[j].x][row[j].y] = row[j].zinv;
         //cout << "          finished drawing pixel" << endl;
 
@@ -189,61 +189,39 @@ void DrawPolygonRows( screen* screen, const vector<Pixel>& leftPixels, const vec
   }
 }
 
-// void DrawLineSDL( screen* screen, Pixel a, Pixel b, vec3 color )
-// {
-//
-//   ivec2 delta = glm::abs( a - b );
-//   int pixels = glm::max( delta.x, delta.y ) + 1;
-//   vector<Pixel> line( pixels );
-//   Interpolate( a, b, line );
-//
-//   for(int i = 0; i < line.size(); i++){
-//     PutPixelSDL( screen, line[i].x, line[i].y, color );
-//   }
-// }
-
 void Interpolate( Pixel a, Pixel b, vector<Pixel>& result )
 {
        int N = result.size();
-       Pixel step;
+       vec3 step;
        step.x = ((b.x-a.x)/float(max(N-1,1)));
        step.y = ((b.y-a.y)/float(max(N-1,1)));
-       step.zinv = ((b.zinv-a.zinv)/float(max(N-1,1)));
-       Pixel current(a);
-       cout << "        pixel 1: " << a.zinv << endl;
-       cout << "        pixel 2: " << b.zinv << endl;
+       step.z = ((b.zinv-a.zinv)/float(max(N-1,1)));
+       vec3 current(a.x,a.y,a.zinv);
+       Pixel current2(a);
+       //cout << "        pixel 1: " << a.x << " , " << a.y << " , " << a.zinv << endl;
+       //cout << "        pixel 2: " << b.x << " , " << b.y << " , " << b.zinv << endl;
        for( int i=0; i<N; ++i )
        {
-           float q = (float)i/(float)N;
-           current.zinv = 1/a.zinv*(1-q) + 1/b.zinv*(q);
+           //cout << "flag 1" << endl;
+           //float q = (float)i/(float)N;
+           //cout << "flag 2" << endl;
+
+           //current.zinv = a.zinv*(1-q) + b.zinv*(q);
+           //cout << "flag 3" << endl;
+
            //cout << "        q i N: " << q << " , " << i << " , " << N << endl;
 
            // cout << "            z term 1: " << a.zinv*(1-q) << endl;
            // cout << "            z term 2: " << b.zinv*(q) << endl;
            // cout << "            new z val: " << current.zinv << endl;
-           result[i] = current;
+           result[i].x = (round(current.x));
+           result[i].y = (round(current.y));
+           result[i].zinv = current.z;
            current.x += step.x;
            current.y += step.y;
+           current.z += step.z;
        }
 }
-
-// void DrawPolygonEdges( const vector<vec4>& vertices, screen* screen, vec4 cameraPos )
-// {
-//     int V = vertices.size();
-//     // Transform each vertex from 3D world position to 2D image position:
-//     vector<Pixel> projectedVertices( V );
-//     for( int i=0; i<V; ++i ){
-//         VertexShader( vertices[i], projectedVertices[i], cameraPos );
-//
-//     }
-//
-//     // Loop over all vertices and draw the edge from it to the next vertex:
-//     for( int i=0; i<V; ++i ){
-//       int j = (i+1)%V; // The next vertex
-//       vec3 color( 1, 1, 1 );
-//       DrawLineSDL( screen, projectedVertices[i], projectedVertices[j], color );
-//     }
-// }
 
 void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPixels, vector<Pixel>& rightPixels )
 {
@@ -285,21 +263,22 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
     vector<Pixel> line( pixels );
     Interpolate( vertexPixels[i], vertexPixels[ (i+1)%3 ], line );
 
-    cout << "      for v" << i << endl;
+    //cout << "      for v" << i << endl;
 
     for(int j = 0; j < line.size(); j++){
+
+
       if(leftPixels[line[j].y - minY].x > line[j].x){
         leftPixels[line[j].y - minY].x = line[j].x;
         leftPixels[line[j].y - minY].zinv = line[j].zinv;
-
       }
       //
       if(rightPixels[line[j].y - minY].x < line[j].x){
         rightPixels[line[j].y - minY].x = line[j].x;
         rightPixels[line[j].y - minY].zinv = line[j].zinv;
       }
-      cout << "         left z = " << leftPixels[line[j].y - minY].zinv << " at " << j << endl;
-      cout << "        right z = " << rightPixels[line[j].y - minY].zinv << " at " << j << endl;
+      //cout << "         left z = " << leftPixels[line[j].y - minY].zinv << " at " << j << endl;
+      //cout << "        right z = " << rightPixels[line[j].y - minY].zinv << " at " << j << endl;
 
     }//end of j for loop for each line
   }//end of loop doing step 4
@@ -313,11 +292,14 @@ void VertexShader( const vec4& v, Pixel& p, vec4 cameraPos )
   float x = v.x - cameraPos.x;
   float y = v.y - cameraPos.y;
   float z = v.z - cameraPos.z;
-  cout << "  non-inv z val:"<< z << endl;
   // then rotate:
+  if(z!=0){
+    p.zinv = 1/z;
+  }
+  else {
+    p.zinv = 0;
+  }
 
-  p.zinv = 1/z;
-  cout << "  inv z val:"<< p.zinv << endl;
   // then move from 3D to 2D:
   p.x = (FOCAL_LENGTH*x/z) + (SCREEN_WIDTH/2);
   p.y = (FOCAL_LENGTH*y/z) + (SCREEN_HEIGHT/2);
