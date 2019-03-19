@@ -285,16 +285,22 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
     vector<Pixel> line( pixels );
     Interpolate( vertexPixels[i], vertexPixels[ (i+1)%3 ], line );
 
+    cout << "      for v" << i << endl;
+
     for(int j = 0; j < line.size(); j++){
       if(leftPixels[line[j].y - minY].x > line[j].x){
         leftPixels[line[j].y - minY].x = line[j].x;
         leftPixels[line[j].y - minY].zinv = line[j].zinv;
+
       }
       //
       if(rightPixels[line[j].y - minY].x < line[j].x){
         rightPixels[line[j].y - minY].x = line[j].x;
         rightPixels[line[j].y - minY].zinv = line[j].zinv;
       }
+      cout << "         left z = " << leftPixels[line[j].y - minY].zinv << " at " << j << endl;
+      cout << "        right z = " << rightPixels[line[j].y - minY].zinv << " at " << j << endl;
+
     }//end of j for loop for each line
   }//end of loop doing step 4
 
