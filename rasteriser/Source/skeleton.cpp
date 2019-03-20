@@ -58,7 +58,7 @@ vec3 DirectLight( Vertex v );
 
 float depthBuffer[SCREEN_HEIGHT][SCREEN_WIDTH];
 vec3 lightPos(0,-0.5,-0.7);
-vec3 lightPower = 1.1f*vec3( 1, 1, 1 );
+vec3 lightPower = 1.1f*vec3( 20, 20, 20 );
 vec3 indirectLightPowerPerArea = 0.5f*vec3( 1, 1, 1 );
 
 int main( int argc, char* argv[] )
@@ -169,7 +169,6 @@ void DrawPolygon( screen* screen, const vector<Vertex>& vertices, vec3 color, ve
        int V = vertices.size();
        vector<Pixel> vertexPixels( V );
        for( int i=0; i<V; ++i ){
-         vertexPixels[i].illumination = color;
          VertexShader( vertices[i], vertexPixels[i], cameraPos );
        }
        //cout << "    vertex shader works" << endl;
@@ -223,7 +222,7 @@ void Interpolate( Pixel a, Pixel b, vector<Pixel>& result )
        step.y = ((b.y-a.y)/float(max(N-1,1)));
        step.z = ((b.zinv-a.zinv)/float(max(N-1,1)));
        vec3 istep;
-       istep = (a.illumination - b.illumination)/float(max(N-1,1));
+       istep = (b.illumination - a.illumination)/float(max(N-1,1));
        vec3 current(a.x,a.y,a.zinv);
        vec3 icurrent(a.illumination);
        for( int i=0; i<N; ++i )
@@ -232,6 +231,7 @@ void Interpolate( Pixel a, Pixel b, vector<Pixel>& result )
            result[i].y = (round(current.y));
            result[i].zinv = current.z;
            result[i].illumination = icurrent;
+           //cout << result[i].illumination.x << " " << result[i].illumination.y << " " << result[i].illumination.z << endl;
 
            current.x += step.x;
            current.y += step.y;
@@ -288,11 +288,14 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
       if(leftPixels[line[j].y - minY].x > line[j].x){
         leftPixels[line[j].y - minY].x = line[j].x;
         leftPixels[line[j].y - minY].zinv = line[j].zinv;
+        leftPixels[line[j].y - minY].illumination = line[j].illumination;
       }
       //
       if(rightPixels[line[j].y - minY].x < line[j].x){
         rightPixels[line[j].y - minY].x = line[j].x;
         rightPixels[line[j].y - minY].zinv = line[j].zinv;
+        rightPixels[line[j].y - minY].illumination = line[j].illumination;
+
       }
       //cout << "         left z = " << leftPixels[line[j].y - minY].zinv << " at " << j << endl;
       //cout << "        right z = " << rightPixels[line[j].y - minY].zinv << " at " << j << endl;
@@ -307,9 +310,13 @@ vec3 DirectLight( Vertex v )
   vec3 d;
   vec3 r (LightVector(v));
   vec3 n (v.normal.x,v.normal.y,v.normal.z);
-  d.x = (lightPower.x * max2( (r.x*n.x) , 0 ))/(4*M_PI*pow(r.x,2));
-  d.y = (lightPower.y * max2( (r.y*n.y) , 0 ))/(4*M_PI*pow(r.y,2));
-  d.z = (lightPower.z * max2( (r.z*n.z) , 0 ))/(4*M_PI*pow(r.z,2));
+  float rn = r.x*n.x + r.y*n.y + r.z*n.z;
+  float rmag = sqrt(pow(r.x,2) + pow(r.y,2) + pow(r.z,2));
+  float term2 = 4*M_PI*rmag;
+  d.x = (lightPower.x * max2( (rn) , 0 ))/term2;
+  d.y = (lightPower.y * max2( (rn) , 0 ))/term2;
+  d.z = (lightPower.z * max2( (rn) , 0 ))/term2;
+  //cout << "light: " << d.x << ","  << d.y << "," << d.z << endl;
   return d;
 }
 //
@@ -346,7 +353,8 @@ void VertexShader( const Vertex& v, Pixel& p, vec4 cameraPos )
   p.x = (FOCAL_LENGTH*x/z) + (SCREEN_WIDTH/2);
   p.y = (FOCAL_LENGTH*y/z) + (SCREEN_HEIGHT/2);
 
-  p.illumination *= DirectLight(v);
+  p.illumination = DirectLight(v);
+  //cout << "    p illumination = " << p.illumination.x << "," << p.illumination.y << "," << p.illumination.z << endl;
 
 }
 
@@ -357,7 +365,8 @@ void PixelShader( screen* screen, const Pixel& p, vec3 color )
   if( p.zinv > depthBuffer[x][y])
   {
     depthBuffer[x][y] = p.zinv;
-    PutPixelSDL(screen,x,y,color);
+    PutPixelSDL(screen,x,y,p.illumination*color);
+    //cout << p.illumination.x << " " << p.illumination.y << " " << p.illumination.z << endl;
   }
 }
 
@@ -383,10 +392,30 @@ bool Update(vec4& cameraPos)
 	    int key_code = e.key.keysym.sym;
 	    switch(key_code)
 	      {
-	      case SDLK_w:
+        case SDLK_LEFT:
+    /* Move camera forward */
+    lightPos.x -= .15;
+    break;
+	      case SDLK_RIGHT:
 		/* Move camera forward */
-    cameraPos.y -= .15;
+    lightPos.x += .15;
 		break;
+        case SDLK_UP:
+    /* Move camera forward */
+    lightPos.z += .15;
+    break;
+        case SDLK_DOWN:
+    /* Move camera forward */
+    lightPos.z -= .15;
+    break;
+        case SDLK_m:
+    /* Move camera forward */
+    lightPos.y += .15;
+    break;
+        case SDLK_n:
+    /* Move camera forward */
+    lightPos.y -= .15;
+    break;
 	      case SDLK_s:
 		/* Move camera backwards */
     cameraPos.y += .15;
