@@ -4,6 +4,9 @@
 #include "SDLauxiliary.h"
 #include "TestModelH.h"
 #include <stdint.h>
+#include <math.h>
+#include <cmath>
+#include <algorithm>
 
 using namespace std;
 using glm::vec3;
@@ -28,21 +31,35 @@ struct Pixel
   int x;
   int y;
   float zinv;
+  vec3 illumination;
+};
+
+struct Vertex
+{
+  vec4 position;
+  vec4 normal;
+  vec2 reflectance;
 };
 
 bool Update(vec4& cameraPos);
 void Draw(screen* screen, vec4 cameraPos);
-void VertexShader( const vec4& v, Pixel& p, vec4 cameraPos );
+void VertexShader( const Vertex& v, Pixel& p, vec4 cameraPos );
 void Interpolate( Pixel a, Pixel b, vector<Pixel>& result );
-//void DrawLineSDL( screen* surface, ivec2 a, ivec2 b, vec3 color );
-// void DrawPolygonEdges( const vector<vec4>& vertices, screen* screen, vec4 cameraPos );
 void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPixels, vector<Pixel>& rightPixels );
 int max3(int a, int b, int c);
 int min3(int a, int b, int c);
+float max2(float a, float b);
 void DrawPolygonRows( screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels, vec3 color );
-void DrawPolygon( screen* screen, const vector<vec4>& vertices, vec3 color, vec4 cameraPos );
+void DrawPolygon( screen* screen, const vector<Vertex>& vertices, vec3 color, vec4 cameraPos );
+void PixelShader( screen* screen, const Pixel& p, vec3 color );
+vec3 LightVector( Vertex v );
+vec3 DirectLight( Vertex v );
+
 
 float depthBuffer[SCREEN_HEIGHT][SCREEN_WIDTH];
+vec3 lightPos(0,-0.5,-0.7);
+vec3 lightPower = 1.1f*vec3( 1, 1, 1 );
+vec3 indirectLightPowerPerArea = 0.5f*vec3( 1, 1, 1 );
 
 int main( int argc, char* argv[] )
 {
@@ -78,11 +95,19 @@ void Draw(screen* screen, vec4 cameraPos)
 
   for( uint32_t i=0; i<triangles.size(); ++i )
      {
-       vector<vec4> vertices(3);
-       vertices[0] = triangles[i].v0;
-       vertices[1] = triangles[i].v1;
-       vertices[2] = triangles[i].v2;
+       vector<Vertex> vertices(3);
 
+       vertices[0].position = triangles[i].v0;
+       vertices[0].reflectance = vec2(0.5,0.5);
+       vertices[0].normal = triangles[i].normal;
+
+       vertices[1].position = triangles[i].v1;
+       vertices[1].reflectance = vec2(0.5,0.5);
+       vertices[1].normal = triangles[i].normal;
+
+       vertices[2].position = triangles[i].v2;
+       vertices[2].reflectance = vec2(0.5,0.5);
+       vertices[2].normal = triangles[i].normal;
 
        // // produces bare skeleton structure of triangles
        // DrawPolygonEdges(vertices, screen, cameraPos);
@@ -139,11 +164,12 @@ void Draw(screen* screen, vec4 cameraPos)
 
 }
 
-void DrawPolygon( screen* screen, const vector<vec4>& vertices, vec3 color, vec4 cameraPos )
+void DrawPolygon( screen* screen, const vector<Vertex>& vertices, vec3 color, vec4 cameraPos )
 {
        int V = vertices.size();
        vector<Pixel> vertexPixels( V );
        for( int i=0; i<V; ++i ){
+         vertexPixels[i].illumination = color;
          VertexShader( vertices[i], vertexPixels[i], cameraPos );
        }
        //cout << "    vertex shader works" << endl;
@@ -180,7 +206,7 @@ void DrawPolygonRows( screen* screen, const vector<Pixel>& leftPixels, const vec
            //<< " , xyz: "<< row[j].x << "," << row[j].y << "," << row[j].zinv << endl;
       if(row[j].zinv > depthBuffer[row[j].x][row[j].y]){
         //cout << "          draw pixel & update buffer start" << endl;
-        PutPixelSDL( screen , row[j].x , row[j].y , color );
+        PixelShader( screen, row[j], color);
         depthBuffer[row[j].x][row[j].y] = row[j].zinv;
         //cout << "          finished drawing pixel" << endl;
 
@@ -196,30 +222,21 @@ void Interpolate( Pixel a, Pixel b, vector<Pixel>& result )
        step.x = ((b.x-a.x)/float(max(N-1,1)));
        step.y = ((b.y-a.y)/float(max(N-1,1)));
        step.z = ((b.zinv-a.zinv)/float(max(N-1,1)));
+       vec3 istep;
+       istep = (a.illumination - b.illumination)/float(max(N-1,1));
        vec3 current(a.x,a.y,a.zinv);
-       Pixel current2(a);
-       //cout << "        pixel 1: " << a.x << " , " << a.y << " , " << a.zinv << endl;
-       //cout << "        pixel 2: " << b.x << " , " << b.y << " , " << b.zinv << endl;
+       vec3 icurrent(a.illumination);
        for( int i=0; i<N; ++i )
        {
-           //cout << "flag 1" << endl;
-           //float q = (float)i/(float)N;
-           //cout << "flag 2" << endl;
-
-           //current.zinv = a.zinv*(1-q) + b.zinv*(q);
-           //cout << "flag 3" << endl;
-
-           //cout << "        q i N: " << q << " , " << i << " , " << N << endl;
-
-           // cout << "            z term 1: " << a.zinv*(1-q) << endl;
-           // cout << "            z term 2: " << b.zinv*(q) << endl;
-           // cout << "            new z val: " << current.zinv << endl;
            result[i].x = (round(current.x));
            result[i].y = (round(current.y));
            result[i].zinv = current.z;
+           result[i].illumination = icurrent;
+
            current.x += step.x;
            current.y += step.y;
            current.z += step.z;
+           icurrent += istep;
        }
 }
 
@@ -285,13 +302,38 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
 
 }
 
-void VertexShader( const vec4& v, Pixel& p, vec4 cameraPos )
+vec3 DirectLight( Vertex v )
+{
+  vec3 d;
+  vec3 r (LightVector(v));
+  vec3 n (v.normal.x,v.normal.y,v.normal.z);
+  d.x = (lightPower.x * max2( (r.x*n.x) , 0 ))/(4*M_PI*pow(r.x,2));
+  d.y = (lightPower.y * max2( (r.y*n.y) , 0 ))/(4*M_PI*pow(r.y,2));
+  d.z = (lightPower.z * max2( (r.z*n.z) , 0 ))/(4*M_PI*pow(r.z,2));
+  return d;
+}
+//
+// vec3 Reflection( vec3 d, Vertex& v )
+// {
+//   vec3 R = crossProduct( v.reflectance, vec3(d + indirectLightPowerPerArea) );
+// }
+
+vec3 LightVector( Vertex v )
+{
+  vec3 delta;
+  delta.x = lightPos.x - v.position.x;
+  delta.y = lightPos.y - v.position.y;
+  delta.z = lightPos.z - v.position.z;
+  return delta;
+}
+
+void VertexShader( const Vertex& v, Pixel& p, vec4 cameraPos )
 {
 
   // translate first: P' = P - C
-  float x = v.x - cameraPos.x;
-  float y = v.y - cameraPos.y;
-  float z = v.z - cameraPos.z;
+  float x = v.position.x - cameraPos.x;
+  float y = v.position.y - cameraPos.y;
+  float z = v.position.z - cameraPos.z;
   // then rotate:
   if(z!=0){
     p.zinv = 1/z;
@@ -304,6 +346,19 @@ void VertexShader( const vec4& v, Pixel& p, vec4 cameraPos )
   p.x = (FOCAL_LENGTH*x/z) + (SCREEN_WIDTH/2);
   p.y = (FOCAL_LENGTH*y/z) + (SCREEN_HEIGHT/2);
 
+  p.illumination *= DirectLight(v);
+
+}
+
+void PixelShader( screen* screen, const Pixel& p, vec3 color )
+{
+  int x = p.x;
+  int y = p.y;
+  if( p.zinv > depthBuffer[x][y])
+  {
+    depthBuffer[x][y] = p.zinv;
+    PutPixelSDL(screen,x,y,color);
+  }
 }
 
 /*Place updates of parameters here*/
@@ -383,4 +438,13 @@ int min3(int a, int b, int c)
     toReturn = c;
   }
   return toReturn;
+}
+
+float max2(float a, float b){
+  if(a > b){
+    return a;
+  }
+  else{
+    return b;
+  }
 }
