@@ -154,7 +154,7 @@ void Interpolate( Pixel a, Pixel b, vector<Pixel>& result )
        vec3 XYZcurrent(a.x,a.y,a.zinv);
 
        vec4 pos3dStep;
-       pos3dStep = (b.pos3d - a.pos3d)/float(max(N-1,1));
+       pos3dStep = (b.pos3d*b.zinv - a.pos3d*a.zinv)/float(max(N-1,1));
        vec4 pos3dCurrent(a.pos3d*a.zinv);
 
        for( int i=0; i<N; ++i )
@@ -167,7 +167,7 @@ void Interpolate( Pixel a, Pixel b, vector<Pixel>& result )
            XYZcurrent.x += XYZstep.x;
            XYZcurrent.y += XYZstep.y;
            XYZcurrent.z += XYZstep.z;
-           pos3dCurrent += pos3dStep*XYZcurrent.z;
+           pos3dCurrent += pos3dStep;
        }
 }
 
