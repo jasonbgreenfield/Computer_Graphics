@@ -36,6 +36,14 @@ struct Vertex
   vec4 position;
 };
 
+struct Trapezoid
+{
+  vec4 left_original;
+  vec4 left_intersect;
+  vec4 right_original;
+  vec4 right_intersect;
+};
+
 bool Update(vec4& cameraPos);
 void Draw(screen* screen, vec4 cameraPos, vector<Triangle>& triangles);
 void VertexShader( const Vertex& v, Pixel& p, vec4 cameraPos );
@@ -45,7 +53,7 @@ int max3(int a, int b, int c);
 int min3(int a, int b, int c);
 float max2(float a, float b);
 void DrawPolygonRows( screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels, vec3 color );
-void DrawPolygon( screen* screen, const vector<Vertex>& vertices, vec3 color, vec4 cameraPos );
+void DrawPolygon( screen* screen,  vector<Vertex>& vertices, vec3 color, vec4 cameraPos );
 void PixelShader( screen* screen, const Pixel& p, vec3 color );
 vec3 LightVector( Pixel v );
 vec3 DirectLight( Pixel v );
@@ -53,6 +61,14 @@ void updateWorld( vector<Triangle>& t );
 float deg2rad( float a );
 float rad2deg( float a );
 void updateR( int angle, int axis );
+void clipAndCull( vector<Triangle>& triangles);
+float vec4DP(vec4 a, vec4 b);
+void convertBackToNormal(Triangle& t);
+// void addVertices(vector<Vertex>& vertices, int triangle_index, vec4 a, vec4 b);
+// bool sameVector(Vertex a, vec4 b);
+// void make_set(vector<vec4>& v);
+void checkBoundary( vector<Triangle>& triangles, vec4 p, vec4 n);
+void checkTrap(Trapezoid trap, Triangle current, vector<Triangle>& list, bool isClipped, bool isCulled, bool isSame);
 
 float theta;
 int change;
@@ -86,6 +102,7 @@ int main( int argc, char* argv[] )
         SDL_Renderframe(screen);
         change = 0;
       }
+
     }
 
   SDL_SaveImage( screen, "screenshot.bmp" );
@@ -119,98 +136,312 @@ void Draw(screen* screen, vec4 cameraPos, vector<Triangle>& triangles)
     }
   }
 
+  clipAndCull(triangles);
+
   for( uint32_t i=0; i<triangles.size(); ++i )
      {
 
        currentNormal = triangles[i].normal;
 
-       vector<Vertex> vertices(3);
+       //check if the triangle is forward-facing
+       bool alwaysTrue = true;
+       if( currentNormal.z < 0.1 ){
+       // if( alwaysTrue ){
 
-       vertices[0].position = triangles[i].v0;
-       // vertices[0].reflectance = vec2(0.5,0.5);
-       // vertices[0].normal = triangles[i].normal;
+         vector<Vertex> vertices(3);
 
-       vertices[1].position = triangles[i].v1;
-       // vertices[1].reflectance = vec2(0.5,0.5);
-       // vertices[1].normal = triangles[i].normal;
+         vertices[0].position = triangles[i].v0;
+         vertices[1].position = triangles[i].v1;
+         vertices[2].position = triangles[i].v2;
 
-       vertices[2].position = triangles[i].v2;
-       // vertices[2].reflectance = vec2(0.5,0.5);
-       // vertices[2].normal = triangles[i].normal;
+         // cout << "Triangle (v0): " << i << "(" << triangles[i].v0.x << ", " << triangles[i].v0.y << ", "<< triangles[i].v0.z << ", "<<triangles[i].v0.w << ")" << endl;
+         // cout << "Triangle (v1): " << i << "(" << triangles[i].v1.x << ", " << triangles[i].v1.y << ", "<< triangles[i].v1.z << ", "<<triangles[i].v1.w << ")" << endl;
+         // cout << "Triangle (v2): " << i << "(" << triangles[i].v2.x << ", " << triangles[i].v2.y << ", "<< triangles[i].v2.z << ", "<<triangles[i].v2.w << ")" << endl;
 
-       // // produces bare skeleton structure of triangles
-       // DrawPolygonEdges(vertices, screen, cameraPos);
-       // for(int v=0; v<3; ++v)
-       //   {
-       //     ivec2 projPos;
-       //     VertexShader( vertices[v], projPos, cameraPos );
-       //     vec3 color(1,1,1);
-       //     PutPixelSDL( screen, projPos.x, projPos.y, color );
-       //  }
+         vec3 currentColor = triangles[i].color;
+         DrawPolygon(screen, vertices, currentColor, cameraPos);
 
+       }
 
-        // vector<ivec2> leftPixels( 31 );
-        // vector<ivec2> rightPixels( 31 );
-        // for(int i = 0; i < 3; i++){
-        //   cout << "I: " << i << " (" << polygonVertices[i].x << ", " << polygonVertices[i].y << ")" << endl;
-        // }
-
-        // //this is a check to prove ComputePolygonRows() works properly
-        // vector<ivec2> vertexPixels(3);
-        // vertexPixels[0] = ivec2(10, 5);
-        // vertexPixels[1] = ivec2( 5,10);
-        // vertexPixels[2] = ivec2(15,15);
-        // vector<ivec2> leftPixels;
-        // vector<ivec2> rightPixels;
-        // ComputePolygonRows( vertexPixels, leftPixels, rightPixels );
-        //  for( int row=0; row<leftPixels.size(); ++row )
-        //  {
-        //      cout << "Start: ("
-        //           << leftPixels[row].x << ","
-        //           << leftPixels[row].y << "). "
-        //           << "End: ("
-        //           << rightPixels[row].x << ","
-        //           << rightPixels[row].y << "). " << endl;
-        //  }
-        //  //end of ComputePolygonRows() check
-
-        // // old stuff i used to use before it was all put into DrawPolygon()
-        // vector<ivec2> polygonVertices(3);
-        // for(int v = 0; v < 3; ++v){
-        //   VertexShader( vertices[v], polygonVertices[v], cameraPos);
-        // }
-        // vector<ivec2> leftPixels;
-        // vector<ivec2> rightPixels;
-        // ComputePolygonRows(polygonVertices, leftPixels, rightPixels);
-        // DrawRows(screen, leftPixels, rightPixels);
-        // //end of outdated stuff
-        //cout << "drawing triangle: " << i << endl;
-        vec3 currentColor = triangles[i].color;
-        DrawPolygon(screen, vertices, currentColor, cameraPos);
-        //cout << "finished drawing polygon" << endl;
 
     }
 
 }
 
-void DrawPolygon( screen* screen, const vector<Vertex>& vertices, vec3 color, vec4 cameraPos )
+// bool sameVector(Vertex a, vec4 b){
+//
+//   if( (a.position.x==b.x) && (a.position.y==b.y) && (a.position.z==b.z) && (a.position.w==b.w) ){
+//     return true;
+//   }
+//   return false;
+// }
+//
+//
+// void addVertices(vector<Vertex>& vertices, int triangle_index, vec4 a, vec4 b)
+// {
+//   bool a_is_in = false;
+//   bool b_is_in = false;
+//   for(int i = 0; i < vertices.size(); i++){
+//
+//     if( sameVector(vertices[i], a) ){
+//       a_is_in = true;
+//     }
+//     if( sameVector(vertices[i], b) ){
+//       b_is_in = true;
+//     }
+//
+//   }//end of for loop
+//
+//   if(a_is_in && b_is_in){
+//     //add two new triangles
+//
+//   }
+//   else if(a_is_in){
+//     //just change the triangles
+//
+//   }
+//   else if(b_is_in){
+//     //just change the triangles
+//
+//   }
+//
+// }
+//
+// void make_set(vector<vec4>& v){
+//   //this will turn the list of vertices into a set
+//
+// }
+
+void convertBackToNormal(Triangle& t)
 {
-       int V = vertices.size();
-       vector<Pixel> vertexPixels( V );
-       for( int i=0; i<V; ++i ){
-         // vertexPixels[i].illumination = color;
-         VertexShader( vertices[i], vertexPixels[i], cameraPos );
-       }
-       //cout << "    vertex shader works" << endl;
+  t.v0.x = t.v0.x/t.v0.w;
+  t.v0.y = t.v0.y/t.v0.w;
+  t.v0.z = t.v0.z/t.v0.w;
+  t.v0.w = t.v0.w/t.v0.w;
 
-       vector<Pixel> leftPixels;
-       vector<Pixel> rightPixels;
+  t.v1.x = t.v1.x/t.v1.w;
+  t.v1.y = t.v1.y/t.v1.w;
+  t.v1.z = t.v1.z/t.v1.w;
+  t.v1.w = t.v1.w/t.v1.w;
 
-       ComputePolygonRows( vertexPixels, leftPixels, rightPixels );
-       //cout << "    compute p rows works" << endl;
+  t.v2.x = t.v2.x/t.v2.w;
+  t.v2.y = t.v2.y/t.v2.w;
+  t.v2.z = t.v2.z/t.v2.w;
+  t.v2.w = t.v2.w/t.v2.w;
 
-       DrawPolygonRows( screen, leftPixels, rightPixels, color );
-       //cout << "    draw p rows works" << endl;
+  glm::vec3 e1 = glm::vec3(t.v1.x-t.v0.x,t.v1.y-t.v0.y,t.v1.z-t.v0.z);
+  glm::vec3 e2 = glm::vec3(t.v2.x-t.v0.x,t.v2.y-t.v0.y,t.v2.z-t.v0.z);
+  glm::vec3 normal3 = glm::normalize( glm::cross( e2, e1 ) );
+  t.normal.x = normal3.x;
+  t.normal.y = normal3.y;
+  t.normal.z = normal3.z;
+  t.normal.w = 1.0;
+}
+
+void checkTrap(Trapezoid trap, Triangle current, vector<Triangle>& list, bool isClipped, bool isCulled, bool isSame)
+{
+  //do I need to change these coordinates back to normal?
+
+  //checks if the original triangle was clipped/culled
+  if(isClipped){
+    //checks if there are 3 unique vertices of 4
+    //if 4, we need two new numTriangles
+    if( (trap.left_original.x==trap.right_original.x) && (trap.left_original.y==trap.right_original.y) && (trap.left_original.z==trap.right_original.z) && (trap.left_original.w==trap.right_original.w) ){
+      Triangle new_triangle(trap.left_original, trap.left_intersect, trap.right_intersect, current.color );
+      convertBackToNormal(new_triangle);
+      list.push_back(new_triangle);
+    }
+    else{
+      Triangle new_a(trap.left_original, trap.left_intersect, trap.right_intersect, current.color);
+      Triangle new_b(trap.right_original, trap.right_intersect, trap.left_original, current.color);
+
+      convertBackToNormal(new_a);
+      convertBackToNormal(new_b);
+
+      list.push_back(new_a);
+      list.push_back(new_b);
+    }//end of case with 2 new triangles
+
+  }//end of clipped
+  else if(isSame){
+    list.push_back(current);
+  }
+ cout << "checked a trap!!! " << current.color.x<< endl;
+}
+
+void checkBoundary( vector<Triangle>& triangles, vec4 p, vec4 n)
+{
+  //this loops through all triangles
+
+  vector<Triangle> toReturn;
+
+  for(int i = 0; i < triangles.size(); i++){
+
+    Trapezoid trap;
+    bool no_left = true;
+    bool isClipped = false;
+    bool isCulled = false;
+    bool isSame = true;
+    int numEdgesIn = 0;
+    int numEdgesOut = 0;
+    //this loop checks one triangle
+    for(int j = 0; j < 3; j++){
+
+      vec4 q1;
+      vec4 q2;
+      if(j==0){
+        q1.x = triangles[i].v0.x;
+        q1.y = triangles[i].v0.y;
+        q1.z = triangles[i].v0.z;
+        q1.w = triangles[i].v0.z/FOCAL_LENGTH;
+
+        q2.x = triangles[i].v1.x;
+        q2.y = triangles[i].v1.y;
+        q2.z = triangles[i].v1.z;
+        q2.w = triangles[i].v1.z/FOCAL_LENGTH;
+      }
+      else if(j==1){
+        q1.x = triangles[i].v1.x;
+        q1.y = triangles[i].v1.y;
+        q1.z = triangles[i].v1.z;
+        q1.w = triangles[i].v1.z/FOCAL_LENGTH;
+
+        q2.x = triangles[i].v2.x;
+        q2.y = triangles[i].v2.y;
+        q2.z = triangles[i].v2.z;
+        q2.w = triangles[i].v2.z/FOCAL_LENGTH;
+      }
+      else{
+        q1.x = triangles[i].v2.x;
+        q1.y = triangles[i].v2.y;
+        q1.z = triangles[i].v2.z;
+        q1.w = triangles[i].v2.z/FOCAL_LENGTH;
+
+        q2.x = triangles[i].v0.x;
+        q2.y = triangles[i].v0.y;
+        q2.z = triangles[i].v0.z;
+        q2.w = triangles[i].v0.z/FOCAL_LENGTH;
+      }
+
+      vec4 q1_minus_p = (q1 - p);
+      vec4 q2_minus_p = (q2 - p);
+      float d1 = vec4DP(q1_minus_p, n);
+      float d2 = vec4DP(q2_minus_p, n);
+
+      //check four cases
+      if( (d1>0) && (d2>0)){
+        //both vertices are in, we continue
+        numEdgesIn += 1;
+        continue;
+        cout << "both in q1: " << q1.x<<", "<<q1.y<< endl;
+      }
+      else if( (d1<0) && (d2<0)){
+        //both are outside, we do nothing
+        numEdgesOut += 1;
+        continue;
+        cout << "both out q1: " << q1.x<<", "<<q1.y<< endl;
+      }
+      else if( (d1>0) && (d2<0) ){
+        cout << "one in on eout q1: " << q1.x<<", "<<q1.y<< endl;
+        //q1 is in, q2 is out, calculate one intersection
+        isClipped = true;
+        vec4 intersect;
+        float t = d1/(d1-d2);
+        intersect = q1 + t*(q1-q2);
+        cout<< "I1: (" << intersect.x << ", "<<intersect.y << ", "<<intersect.z << ", "<<intersect.w << ")"<<endl;
+
+        //we need to change what was q2 in vertices -> intersect
+        if(no_left){
+          trap.left_original = q1;
+          trap.left_intersect = intersect;
+          no_left = false;
+        }
+        else{
+          trap.right_original = q1;
+          trap.right_intersect = intersect;
+        }
+
+      }
+      else if( (d1<0) && (d2>0) ){
+        cout << "q1: " << q1.x<<", "<<q1.y<< endl;
+        //q2 is in, q1 is out, caluclate one intersection
+        isClipped = true;
+        vec4 intersect;
+        float t = d2/(d2-d1);
+        intersect = q2 + t*(q2-q1);
+        cout<< "I2: Trianl"<<"(" << intersect.x << ", "<<intersect.y << ", "<<intersect.z << ", "<<intersect.w << ")"<<endl;
+
+
+        //we need to change what was q1 in vertices -> intersect
+        if(no_left){
+          trap.left_original = q2;
+          trap.left_intersect = intersect;
+          no_left = false;
+        }
+        else{
+          trap.right_original = q2;
+          trap.right_intersect = intersect;
+        }
+
+      }
+
+    }//end of j loop
+
+    //whole triangle is in boundary
+    if(numEdgesIn == 3){
+      isSame = true;
+      isClipped = false;
+      isCulled = false;
+    }
+    //whole triangle is outside boundary
+    if(numEdgesOut == 3){
+      isCulled = true;
+      isSame = false;
+      isClipped = false;
+    }
+
+    checkTrap(trap, triangles[i], toReturn, isClipped, isCulled, isSame);
+
+  }//end of i loop
+
+  triangles = toReturn;
+
+}
+
+void clipAndCull( vector<Triangle>& triangles )
+{
+
+  //check left plane
+  vec4 p_left(-1, 0, 0, 0);
+  vec4 n_left(1, 0, 0, 0);
+  checkBoundary(triangles, p_left, n_left);
+
+
+}
+
+void DrawPolygon( screen* screen, vector<Vertex>& vertices, vec3 color, vec4 cameraPos )
+{
+
+        bool alwaysTrue = true;
+       // if( clipAndCull(vertices) ){
+        if( alwaysTrue ){
+
+         int numTriangles = vertices.size()/3;
+         for(int i = 0; i < numTriangles; i++ ){
+
+           vector<Pixel> vertexPixels(3);
+           for(int j = 0; j < 3; j++){
+             VertexShader(vertices[i+j], vertexPixels[j], cameraPos);
+           }
+
+           vector<Pixel> leftPixels;
+           vector<Pixel> rightPixels;
+           ComputePolygonRows( vertexPixels, leftPixels, rightPixels );
+           DrawPolygonRows( screen, leftPixels, rightPixels, color );
+
+         }//end of loop for all the new triangles
+
+       }//end of clipAndCull() if statement
 
 }
 
@@ -417,7 +648,8 @@ void PixelShader( screen* screen, const Pixel& p, vec3 color )
   }
 }
 
-void updateR( int angle, int axis ){
+void updateR( int angle, int axis )
+{
   //rotate x
   if(axis==0){
     R[0][0] = 1;
@@ -457,7 +689,8 @@ void updateR( int angle, int axis ){
 
 }
 
-void updateWorld(vector<Triangle>& t){
+void updateWorld(vector<Triangle>& t)
+{
 
   vec4 newv0;
   vec4 newv1;
@@ -655,4 +888,9 @@ float max2(float a, float b)
   else{
     return b;
   }
+}
+
+float vec4DP(vec4 a, vec4 b)
+{
+  return (a.x*b.x + a.y*b.y + a.z*b.z + a.w*b.w);
 }
