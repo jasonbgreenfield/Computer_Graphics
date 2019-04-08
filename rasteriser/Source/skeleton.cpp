@@ -53,6 +53,7 @@ void updateWorld( vector<Triangle>& t );
 float deg2rad( float a );
 float rad2deg( float a );
 void updateR( int angle, int axis );
+int clipandcull( vector<Vertex>& v );
 
 float theta;
 int change;
@@ -123,78 +124,98 @@ void Draw(screen* screen, vec4 cameraPos, vector<Triangle>& triangles)
      {
 
        currentNormal = triangles[i].normal;
+       if (currentNormal.z < 0.2){
 
-       vector<Vertex> vertices(3);
+         vector<Vertex> vertices(3);
 
-       vertices[0].position = triangles[i].v0;
-       // vertices[0].reflectance = vec2(0.5,0.5);
-       // vertices[0].normal = triangles[i].normal;
+         vertices[0].position = triangles[i].v0;
+         // vertices[0].reflectance = vec2(0.5,0.5);
+         // vertices[0].normal = triangles[i].normal;
 
-       vertices[1].position = triangles[i].v1;
-       // vertices[1].reflectance = vec2(0.5,0.5);
-       // vertices[1].normal = triangles[i].normal;
+         vertices[1].position = triangles[i].v1;
+         // vertices[1].reflectance = vec2(0.5,0.5);
+         // vertices[1].normal = triangles[i].normal;
 
-       vertices[2].position = triangles[i].v2;
-       // vertices[2].reflectance = vec2(0.5,0.5);
-       // vertices[2].normal = triangles[i].normal;
+         vertices[2].position = triangles[i].v2;
+         // vertices[2].reflectance = vec2(0.5,0.5);
+         // vertices[2].normal = triangles[i].normal;
 
-       // // produces bare skeleton structure of triangles
-       // DrawPolygonEdges(vertices, screen, cameraPos);
-       // for(int v=0; v<3; ++v)
-       //   {
-       //     ivec2 projPos;
-       //     VertexShader( vertices[v], projPos, cameraPos );
-       //     vec3 color(1,1,1);
-       //     PutPixelSDL( screen, projPos.x, projPos.y, color );
-       //  }
+         vec3 currentColor = triangles[i].color;
+         DrawPolygon(screen, vertices, currentColor, cameraPos);
+         //cout << "finished drawing polygon" << endl;
+       }
+    }
+
+}
+
+int clipandcull( vector<Vertex>& v ){
+  int cull = 0;
+  int clip = 0;
+  vector<Vertex> v_in;
+  vector<Vertex> v_out;
+  int in = 0;
+  Vertex v_out;
+  vec2 in_out;
+  int x,y,z;
+  float zf = v.z/FOCAL_LENGTH;
+  v.w = zf;
+  float umax = SCREEN_WIDTH * zf;
+  float vmax = SCREEN_HEIGHT * zf;
 
 
-        // vector<ivec2> leftPixels( 31 );
-        // vector<ivec2> rightPixels( 31 );
-        // for(int i = 0; i < 3; i++){
-        //   cout << "I: " << i << " (" << polygonVertices[i].x << ", " << polygonVertices[i].y << ")" << endl;
-        // }
+  for(int = 0; i < v.size(); i++){
+    //
+    if(v[i].x >= 0 && v[i].x <= umax){x=0}
+    else{x=1}
+    if(v[i].y >= 0 && v[i].y <= vmax){y=0}
+    else{y=1}
+    if(v[i].z >= 0){z=0}
+    else{z=1}
 
-        // //this is a check to prove ComputePolygonRows() works properly
-        // vector<ivec2> vertexPixels(3);
-        // vertexPixels[0] = ivec2(10, 5);
-        // vertexPixels[1] = ivec2( 5,10);
-        // vertexPixels[2] = ivec2(15,15);
-        // vector<ivec2> leftPixels;
-        // vector<ivec2> rightPixels;
-        // ComputePolygonRows( vertexPixels, leftPixels, rightPixels );
-        //  for( int row=0; row<leftPixels.size(); ++row )
-        //  {
-        //      cout << "Start: ("
-        //           << leftPixels[row].x << ","
-        //           << leftPixels[row].y << "). "
-        //           << "End: ("
-        //           << rightPixels[row].x << ","
-        //           << rightPixels[row].y << "). " << endl;
-        //  }
-        //  //end of ComputePolygonRows() check
+    if(x==0 && y==0 && z==0){
+      in.push_back(v[i]);
+    }
+    else{
+      out.push_back(v[i]);
+    }
+  }
 
-        // // old stuff i used to use before it was all put into DrawPolygon()
-        // vector<ivec2> polygonVertices(3);
-        // for(int v = 0; v < 3; ++v){
-        //   VertexShader( vertices[v], polygonVertices[v], cameraPos);
-        // }
-        // vector<ivec2> leftPixels;
-        // vector<ivec2> rightPixels;
-        // ComputePolygonRows(polygonVertices, leftPixels, rightPixels);
-        // DrawRows(screen, leftPixels, rightPixels);
-        // //end of outdated stuff
-        //cout << "drawing triangle: " << i << endl;
-        vec3 currentColor = triangles[i].color;
-        DrawPolygon(screen, vertices, currentColor, cameraPos);
-        //cout << "finished drawing polygon" << endl;
+  if(out.size() == 3){cull=1}
+  else if if(out.size() == 0){}
+  else{
+    //CLIP
+    //for each in vertex
+      //for each out vertex
+    for( Vertex in : v_in ){
 
     }
+
+  }
+  else if()
+  else if(out == 0){}
+  else
+
+  }
+
+  for(int i = 0; i < v.size; i++)
+
+    // if all points are outside, cull = 1
+    // if all point are inside, do nothing
+    // else, clip
+    if(d1 and d2 are inside)
+    else{
+
+    }
+
+    }
+  }
 
 }
 
 void DrawPolygon( screen* screen, const vector<Vertex>& vertices, vec3 color, vec4 cameraPos )
 {
+       clipandcull( vertices );
+
        int V = vertices.size();
        vector<Pixel> vertexPixels( V );
        for( int i=0; i<V; ++i ){
@@ -498,128 +519,115 @@ void updateWorld(vector<Triangle>& t){
   }
 }
 
-/*Place updates of parameters here*/
-bool Update(vec4& cameraPos)
-{
-  static int t = SDL_GetTicks();
-  /* Compute frame time */
-  int t2 = SDL_GetTicks();
-  //float dt = float(t2-t);
-  t = t2;
-
+bool Update(vec4& cameraPos){
   theta = 0;
-
   SDL_Event e;
+
   while(SDL_PollEvent(&e))
-    {
-      if (e.type == SDL_QUIT)
-	{
-	  return false;
-	}
-      else
-	if (e.type == SDL_KEYDOWN)
-	  {
-      change = 1;
-	    int key_code = e.key.keysym.sym;
-	    switch(key_code)
-	      {
-	      case SDLK_w:
-        		/* Move camera forward */
-            cameraPos.y -= .15;
-        		break;
-	      case SDLK_s:
-        		/* Move camera backwards */
-            cameraPos.y += .15;
-        		break;
-	      case SDLK_a:
-        		/* Move camera left */
-            cameraPos.x += .15;
-        		break;
-	      case SDLK_d:
-        		/* Move camera right */
-            cameraPos.x -= .15;
-        		break;
-        case SDLK_q:
-            /* Move camera forwards */
-            cameraPos.z += .15;
-            break;
-        case SDLK_e:
-    /* Move camera backwards */
-    cameraPos.z -= .15;
-    break;
-
-    case SDLK_i:
-      /* rotate world forward x */
-      theta = -10;
-      updateR(theta,0);
-      changeR = 1;
-      break;
-    case SDLK_k:
-      /* rotate world backward x */
-      theta = 10;
-      updateR(theta,0);
-      changeR = 1;
-      break;
-    case SDLK_j:
-      /* rotate world left y*/
-      theta = 10;
-      updateR(theta,1);
-      changeR = 1;
-      break;
-    case SDLK_l:
-      /* rotate world right y*/
-      theta = -10;
-      updateR(theta,1);
-      changeR = 1;
-      break;
-    case SDLK_u:
-      /* rotate world left z*/
-      theta = -10;
-      updateR(theta,2);
-      changeR = 1;
-      break;
-    case SDLK_o:
-      /* rotate world right z */
-      theta = 10;
-      updateR(theta,2);
-      changeR = 1;
-      break;
-
-
-
-        case SDLK_UP:
-    /* Move light up */
-    lightPos.y -= .15;
-    break;
-        case SDLK_DOWN:
-    /* Move light down */
-    lightPos.y += .15;
-    break;
-        case SDLK_RIGHT:
-    /* Move light right */
-    lightPos.x += .15;
-    break;
-        case SDLK_LEFT:
-    /* Move light left */
-    lightPos.x -= .15;
-    break;
-        case SDLK_z:
-    /* Move light forwad */
-    lightPos.z += .15;
-    break;
-        case SDLK_x:
-    /* Move light backwards */
-    lightPos.z -= .15;
-    break;
-
-
-
-	      case SDLK_ESCAPE:
-		/* Move camera quit */
-		return false;
-	      }
-	  }
+  {
+    if(e.type == SDL_QUIT){
+      return false;
     }
+    else{
+      if(e.type == SDL_KEYDOWN){
+        change = 1;
+        int key_code = e.key.keysym.sym;
+        switch(key_code)
+        {
+          case SDLK_w:
+            /* Move camera forward */
+            cameraPos.y -= .15;
+            break;
+          case SDLK_s:
+            /* Move camera backwards */
+            cameraPos.y += .15;
+            break;
+          case SDLK_a:
+             /* Move camera left */
+             cameraPos.x += .15;
+             break;
+          case SDLK_d:
+             /* Move camera right */
+             cameraPos.x -= .15;
+             break;
+          case SDLK_q:
+             /* Move camera forwards */
+             cameraPos.z += .15;
+             break;
+          case SDLK_e:
+             /* Move camera backwards */
+             cameraPos.z -= .15;
+             break;
+
+          case SDLK_i:
+            /* rotate world forward x */
+            theta = -10;
+            updateR(theta,0);
+            changeR = 1;
+            break;
+          case SDLK_k:
+            /* rotate world backward x */
+            theta = 10;
+            updateR(theta,0);
+            changeR = 1;
+            break;
+          case SDLK_j:
+            /* rotate world left y*/
+            theta = 10;
+            updateR(theta,1);
+            changeR = 1;
+            break;
+          case SDLK_l:
+            /* rotate world right y*/
+            theta = -10;
+            updateR(theta,1);
+            changeR = 1;
+            break;
+          case SDLK_u:
+            /* rotate world left z*/
+            theta = -10;
+            updateR(theta,2);
+            changeR = 1;
+            break;
+          case SDLK_o:
+            /* rotate world right z */
+            theta = 10;
+            updateR(theta,2);
+            changeR = 1;
+            break;
+
+          case SDLK_UP:
+            /* Move light up */
+            lightPos.y -= .15;
+            break;
+          case SDLK_DOWN:
+            /* Move light down */
+            lightPos.y += .15;
+            break;
+          case SDLK_RIGHT:
+            /* Move light right */
+            lightPos.x += .15;
+            break;
+          case SDLK_LEFT:
+            /* Move light left */
+            lightPos.x -= .15;
+            break;
+          case SDLK_z:
+            /* Move light forwad */
+            lightPos.z += .15;
+            break;
+          case SDLK_x:
+            /* Move light backwards */
+            lightPos.z -= .15;
+            break;
+
+          case SDLK_ESCAPE:
+            /* Move camera quit */
+            return false;
+        }
+      }
+    }
+  }
   return true;
 }
 
