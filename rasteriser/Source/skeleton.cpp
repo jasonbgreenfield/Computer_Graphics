@@ -36,7 +36,13 @@ struct Vertex
   vec4 position;
 };
 
-bool Update(vec4& cameraPos);
+struct cV
+{
+  vec4 position;
+  bool updated;
+};
+
+bool Update(vec4& cameraPos, vector<Triangle>& triangles);
 void Draw(screen* screen, vec4 cameraPos, vector<Triangle>& triangles);
 void VertexShader( const Vertex& v, Pixel& p, vec4 cameraPos );
 void Interpolate( Pixel a, Pixel b, vector<Pixel>& result );
@@ -53,13 +59,19 @@ void updateWorld( vector<Triangle>& t );
 float deg2rad( float a );
 float rad2deg( float a );
 void updateR( int angle, int axis );
+vector<vec4> xleft(vector<vec4> v);
+vector<vec4> xright(vector<vec4> v);
+vector<vec4> ybottom(vector<vec4> v);
+vector<vec4> ytop(vector<vec4> v);
+vector<vec4> zfront(vector<vec4> v);
+vector<vec4> zback(vector<vec4> v);
 
 float theta;
 int change;
 int changeR;
 
 float depthBuffer[SCREEN_HEIGHT][SCREEN_WIDTH];
-vec3 lightPos(0,-0.5,-0.7);
+vec3 lightPos(0,-0.5,2.3);
 int brightness = 15;
 vec3 lightPower = 1.1f*vec3( brightness, brightness, brightness);
 vec3 indirectLightPowerPerArea = 0.5f*vec3( 1, 1, 1 );
@@ -71,15 +83,21 @@ mat3 R;
 int main( int argc, char* argv[] )
 {
   screen *screen = InitializeSDL( SCREEN_WIDTH, SCREEN_HEIGHT, FULLSCREEN_MODE );
-  vec4 cameraPos( 0, 0, -3.001,1 );
+  vec4 cameraPos( 0, 0, 0, 1 );
   theta = 0;
   change = 1;
   changeR = 0;
 
   vector<Triangle> triangles;
   LoadTestModel( triangles );
+  for( int i=0; i<triangles.size(); i++){
+    triangles[i].v0.z += 3;
+    triangles[i].v1.z += 3;
+    triangles[i].v2.z += 3;
+    triangles[i].ComputeNormal();
+  }
 
-  while ( Update(cameraPos))
+  while ( Update(cameraPos,triangles))
     {
       if (change == 1){
         Draw(screen, cameraPos, triangles);
@@ -119,84 +137,625 @@ void Draw(screen* screen, vec4 cameraPos, vector<Triangle>& triangles)
     }
   }
 
-  for( uint32_t i=0; i<triangles.size(); ++i )
+  vector<Triangle> clippedTriangles;
+  vector<vec3> clippedColours;
+  vector<vector<vec4> > clippedV;
+  vector<vec4> v;
+  vector<vec4> newvA;
+  vector<vec4> newvB;
+
+  cout << "FLAG 1 -- Start Clipping" << endl;
+
+  for( int i=0; i<triangles.size(); i++){
+
+    //for each triangle, clip the points
+    v.clear();
+    v.push_back(triangles[i].v0);
+    v.push_back(triangles[i].v1);
+    v.push_back(triangles[i].v2);
+
+    newvA = zfront(v);
+    cout << "   z front size: " << newvA.size() << endl;
+    newvB = zback(newvA);
+    cout << "   z back size: " << newvB.size() << endl;
+    newvA = xleft(newvB);
+    cout << "   x left size: " << newvA.size() << endl;
+    newvB = xright(newvA);
+    cout << "   x right size: " << newvB.size() << endl;
+    newvA = ybottom(newvB);
+    cout << "   x left size: " << newvA.size() << endl;
+    newvB = ytop(newvA);
+    cout << "   x right size: " << newvB.size() << endl;
+    if(newvB.size() < 3){
+      //cull
+      cout << "   CULL triangle " << i << endl;
+    }
+    else{
+      clippedV.push_back(newvB);
+      clippedColours.push_back(triangles[i].color);
+    }
+    //clipped T is a vector of vectors, a set of points for each triangle
+  }
+
+  cout << "   Number of triangles: " << clippedV.size() << endl;
+  cout << "FLAG 2 -- Splitting" << endl;
+
+  vector<vec4> t;
+  //loop that iterates through all cli
+  for( int i = 0; i < clippedV.size(); i++ ){
+    t.clear();
+    //t = clippedV[i];
+    for(int j = 0; j < clippedV[i].size(); j++){
+      t.push_back(clippedV[i][j]);
+      //cout << "   Vertex " << j << " of triangle " << i << ": " << t[j].x << " , " << t[j].y << " , " << t[j].z << " , " << t[j].w << endl;
+
+    }
+
+    if(clippedV[i].size() > 3){
+      cout << "v>3 - SPLIT:" << endl;
+
+      //then split
+      int dnum = clippedV[i].size() - 3;
+      cout << "             dnum = " << dnum << endl;
+
+      vec4 v0 = t[0];
+
+      for(int j = 0; j<=dnum; j++){
+
+        vec4 v1 = t[(j+1)];
+        vec4 v2 = t[(j+2)];
+        Triangle temp(v0,v1,v2,clippedColours[i]);
+        cout << "             new split triangle " << j+1
+             << " = v0(" << temp.v0.x << "," << temp.v0.y << "," << temp.v0.z << "," << temp.v0.w
+             << ") v1(" << temp.v1.x << "," << temp.v1.y << "," << temp.v1.z << "," << temp.v1.w
+             << ") v2(" << temp.v2.x << "," << temp.v2.y << "," << temp.v2.z << "," << temp.v2.w << ")" << endl;
+        clippedTriangles.push_back(temp);
+      }
+
+    } else {
+      cout << "v=3 ";
+      Triangle temp(t[0],t[1],t[2],clippedColours[i]);
+      clippedTriangles.push_back(temp);
+    }
+  }
+  cout << endl;
+
+
+  for( uint32_t i=0; i<clippedTriangles.size(); ++i )
      {
 
-       currentNormal = triangles[i].normal;
+       currentNormal = clippedTriangles[i].normal;
 
        vector<Vertex> vertices(3);
 
-       vertices[0].position = triangles[i].v0;
+       vertices[0].position = clippedTriangles[i].v0;
+       //vertices[0].position.z += 3;
        // vertices[0].reflectance = vec2(0.5,0.5);
        // vertices[0].normal = triangles[i].normal;
 
-       vertices[1].position = triangles[i].v1;
+       vertices[1].position = clippedTriangles[i].v1;
+       //vertices[1].position.z += 3;
        // vertices[1].reflectance = vec2(0.5,0.5);
        // vertices[1].normal = triangles[i].normal;
 
-       vertices[2].position = triangles[i].v2;
+       vertices[2].position = clippedTriangles[i].v2;
+       //vertices[2].position.z += 3;
        // vertices[2].reflectance = vec2(0.5,0.5);
        // vertices[2].normal = triangles[i].normal;
 
-       // // produces bare skeleton structure of triangles
-       // DrawPolygonEdges(vertices, screen, cameraPos);
-       // for(int v=0; v<3; ++v)
-       //   {
-       //     ivec2 projPos;
-       //     VertexShader( vertices[v], projPos, cameraPos );
-       //     vec3 color(1,1,1);
-       //     PutPixelSDL( screen, projPos.x, projPos.y, color );
-       //  }
-
-
-        // vector<ivec2> leftPixels( 31 );
-        // vector<ivec2> rightPixels( 31 );
-        // for(int i = 0; i < 3; i++){
-        //   cout << "I: " << i << " (" << polygonVertices[i].x << ", " << polygonVertices[i].y << ")" << endl;
-        // }
-
-        // //this is a check to prove ComputePolygonRows() works properly
-        // vector<ivec2> vertexPixels(3);
-        // vertexPixels[0] = ivec2(10, 5);
-        // vertexPixels[1] = ivec2( 5,10);
-        // vertexPixels[2] = ivec2(15,15);
-        // vector<ivec2> leftPixels;
-        // vector<ivec2> rightPixels;
-        // ComputePolygonRows( vertexPixels, leftPixels, rightPixels );
-        //  for( int row=0; row<leftPixels.size(); ++row )
-        //  {
-        //      cout << "Start: ("
-        //           << leftPixels[row].x << ","
-        //           << leftPixels[row].y << "). "
-        //           << "End: ("
-        //           << rightPixels[row].x << ","
-        //           << rightPixels[row].y << "). " << endl;
-        //  }
-        //  //end of ComputePolygonRows() check
-
-        // // old stuff i used to use before it was all put into DrawPolygon()
-        // vector<ivec2> polygonVertices(3);
-        // for(int v = 0; v < 3; ++v){
-        //   VertexShader( vertices[v], polygonVertices[v], cameraPos);
-        // }
-        // vector<ivec2> leftPixels;
-        // vector<ivec2> rightPixels;
-        // ComputePolygonRows(polygonVertices, leftPixels, rightPixels);
-        // DrawRows(screen, leftPixels, rightPixels);
-        // //end of outdated stuff
-        //cout << "drawing triangle: " << i << endl;
-        vec3 currentColor = triangles[i].color;
+        vec3 currentColor = clippedTriangles[i].color;
         DrawPolygon(screen, vertices, currentColor, cameraPos);
         //cout << "finished drawing polygon" << endl;
 
     }
 
 }
+//
+// void setP_N(vector<vec4>& P, vector<vec4>& n)
+// {
+//   vec4 point;
+//   vec4 pnormal;
+//
+//   //x left
+//   point = vec4( -1, 0, 0, 0/FOCAL_LENGTH );
+//   pnormal = vec4( 1, 0, 0, 1);
+//   P.push_back(point);
+//   n.push_back(pnormal);
+//
+//   //x right
+//   point = vec4( 1, 0, 0, 0/FOCAL_LENGTH );
+//   pnormal = vec4( -1, 0, 0, 1);
+//   P.push_back(point);
+//   n.push_back(pnormal);
+//
+//   //y bottom
+//   point = vec4( 0, -1, 0, 0/FOCAL_LENGTH );
+//   pnormal = vec4( 0, 1, 0, 1);
+//   P.push_back(point);
+//   n.push_back(pnormal);
+//
+//   //y top
+//   point = vec4( 0, 1, 0, 0/FOCAL_LENGTH );
+//   pnormal = vec4( 0, -1, 0, 1);
+//   P.push_back(point);
+//   n.push_back(pnormal);
+//
+//   //z back
+//   point = vec4( 0, 0, 1, 1/FOCAL_LENGTH );
+//   pnormal = vec4( 0, 0, -1, 1);
+//   P.push_back(point);
+//   n.push_back(pnormal);
+//
+//   //z front
+//   point = vec4( 0, 0, -1, -1/FOCAL_LENGTH );
+//   pnormal = vec4( 0, 0, 1, 1);
+//   P.push_back(point);
+//   n.push_back(pnormal);
+// }
+//
+// void clip(vector<Vertex>& v, vector<Pixel>& p)
+// {
+//
+//   // float xmax = width;
+//   // float ymax = height;
+//   vector<clipV> v2;
+//   for(int i = 0; i < 3; i++){
+//     clipV temp;
+//     temp.position = v[i].position;
+//
+//   }
+//
+//   float xmax = float(width)/2;
+//   float ymax = float(height)/2;
+//   float zmax = 1.5;
+//
+//   vector<vec4> P;
+//   vector<vec4> n;
+//
+//   setP_N(P,n);
+//
+//   vector<clipV> clippedV;
+//
+//
+//   int out = 0;
+//   int in = 0;
+//
+//   for(int i = 0; i < 6; i++){
+//     for(int j = 0; j < 3; j++){
+//
+//       vec4 a = v[j].positon;
+//       vec4 b = v[(j + 1) % 3].position;
+//       //convert to homogeneous
+//       vec4 A( a[j].x, a[j].y, a[j].z, (a[j].z / FOCAL_LENGTH));
+//       vec4 B( b[j].x, b[j].y, b[j].z, (b[j].z / FOCAL_LENGTH));
+//
+//       //for each plane, calculate d1 and d2
+//       vec4 dA = A - P[j];
+//       vec4 dB = B - P[j];
+//       float d1 = ( dA.x * n[j].x ) + ( dA.y * n[j].y ) + ( dA.z * n[j].z ) + ( dA.z * n[j].z );
+//       float d2 = ( dB.x * n[j].x ) + ( dB.y * n[j].y ) + ( dB.z * n[j].z ) + ( dB.z * n[j].z );
+//
+//       if((d1>=0 && d2>0)||(d2>=0 && d1>0)){
+//         //line inside
+//         cout << "both inside" << endl;
+//         in++;
+//       }
+//       else if((d1<=0 && d2<0)||(d2<=0 && d1<0)){
+//         //line outside
+//         cout << "both outside" << endl;
+//         out++;
+//       }
+//       else if(d1>0 && d2<0){
+//         //A inside, B outside
+//         //calculate I
+//         //add A and I to clipped points list
+//         cout << "A in, B out" << endl;
+//
+//         float t = d1 / (d1-d2);
+//         vec4 I = A + t*(B-A);
+//
+//         clipV anchor_point;
+//         anchor_point.position = A;
+//         anchor_point.new = false;
+//         clippedV.push_back(anchor_point)
+//
+//         clipV clipped_point;
+//         clipped_point.position = I;
+//         clipped_point.new = true;
+//         clippedV.push_back(clipped_point);
+//
+//       }
+//       else if(d1<0 && d2>0){
+//         //B inside, A outside
+//         //calculate I
+//         //add B and I to clipped points list
+//         cout << "A out, B in" << endl;
+//
+//         float t = d1 / (d1-d2);
+//         vec4 I = A + t*(B-A);
+//
+//         clipV anchor_point;
+//         anchor_point.position = B;
+//         anchor_point.new = false;
+//         clippedV.push_back(anchor_point)
+//
+//         clipV clipped_point;
+//         clipped_point.position = I;
+//         clipped_point.new = true;
+//         clippedV.push_back(clipped_point);
+//       }
+//       else{
+//         cout << "uh-oh" << endl;
+//       }
+//     }
+//     removeDuplicates(clippedV);
+//     if(out==3){
+//       break;
+//     }
+//     if(clippedV.size() > )
+//   }
+//
+//
+//     if(out == 3){
+//       //all outside
+//       //return flag saying don't draw
+//     }
+//     else if(in == 3){
+//       //all inside
+//       //return original points
+//     }
+//     if(clippedV.size() > 3){
+//       //split by new points
+//       //one triangle has both new points and
+//     }
+//
+// }
+//
+// void removeDuplicates(vector<clipV>& v)
+// {
+//   vector<clipV> newv;
+//   bool match = false;
+//
+//   for(int i = 0; i < v.size(); i++){
+//     match = false;
+//     //if v[i] doesn't exist in new v, then add it
+//     for(int j = 0; j < newv.size(); j++){
+//       if(v[i].position == newv[j].position){
+//         match = true;
+//       }
+//     }
+//     if(!match){
+//       newv.pushback(v[i]);
+//     }
+//   }
+//   v = newv;
+//
+// }
+//
+
+vector<vec4> xleft(vector<vec4> v){
+  int num = v.size();
+  vector<vec4> clippedV;
+  float xmin = -SCREEN_WIDTH/2 ; //times z/f?
+  for(int i = 0; i < num; i++){
+    vec4 a = v[i];
+    vec4 b = v[(i+1)%num];
+    //convert to clip space
+    vec4 A( a.x, a.y, a.z, (a.z / FOCAL_LENGTH));
+    vec4 B( b.x, b.y, b.z, (b.z / FOCAL_LENGTH));
+    float dA = A.x - (A.w * xmin);
+    float dB = B.x - (B.w * xmin);
+    // cout << "      A z value: " << A.z << endl;
+    // cout << "      B z value: " << B.z << endl;
+    // cout << "      dA: " << dA << endl;
+    // cout << "      dB: " << dB << endl;
+    // cout << "      ------- " << endl;
+
+
+    if((dA >= 0) && (dB >= 0)){
+      //both inside
+      //cout << "flag inside" << endl;
+      //cout << "B: " << B.x << ", " << B.y << ", " << B.z << ", " << B.w << endl;
+      clippedV.push_back(B);
+    }
+    if((dA >= 0) && (dB < 0)){
+      //b outside
+      float t = dA / (dA-dB);
+      vec4 I = vec4(A + t*(B-A));
+      clippedV.push_back(I);
+    }
+    if((dA < 0) && (dB >= 0)){
+      //a outside
+      float t = dA / (dA-dB);
+      vec4 I = vec4(A + t*(B-A));
+      clippedV.push_back(I);
+      clippedV.push_back(B);
+    }
+  }
+  return clippedV;
+}
+
+vector<vec4> xright(vector<vec4> v){
+  int num = v.size();
+  vector<vec4> clippedV;
+  float xmax = SCREEN_WIDTH/2; //times z/f?
+  for(int i = 0; i < num; i++){
+    vec4 A = v[i];
+    vec4 B = v[(i+1)%num];
+    //convert to clip space
+    // vec4 A( a[i].x, a[i].y, a[i].z, (a[i].z / FOCAL_LENGTH));
+    // vec4 B( b[i].x, b[i].y, b[i].z, (b[i].z / FOCAL_LENGTH));
+    float dA = (A.w * xmax) - A.x;
+    float dB = (B.w * xmax) - B.x;
+    // cout << "      A z value: " << A.z << endl;
+    // cout << "      B z value: " << B.z << endl;
+    // cout << "      dA: " << dA << endl;
+    // cout << "      dB: " << dB << endl;
+    // cout << "      ------- " << endl;
+
+
+    if((dA >= 0) && (dB >= 0)){
+      //both inside
+      //cout << "flag inside" << endl;
+      //cout << "B: " << B.x << ", " << B.y << ", " << B.z << ", " << B.w << endl;
+      clippedV.push_back(B);
+    }
+    if((dA >= 0) && (dB < 0)){
+      //b outside
+      float t = dA / (dA-dB);
+      vec4 I = vec4(A + t*(B-A));
+      clippedV.push_back(I);
+    }
+    if((dA < 0) && (dB >= 0)){
+      //a outside
+      float t = dA / (dA-dB);
+      vec4 I = vec4(A + t*(B-A));
+      clippedV.push_back(I);
+      clippedV.push_back(B);
+    }
+  }
+  return clippedV;
+}
+
+vector<vec4> ybottom(vector<vec4> v){
+  int num = v.size();
+  vector<vec4> clippedV;
+  float ymin = -SCREEN_HEIGHT/2 ; //times z/f?
+  for(int i = 0; i < num; i++){
+    vec4 A = v[i];
+    vec4 B = v[(i+1)%num];
+    //convert to clip space
+    // vec4 A( a.x, a.y, a.z, (a.z / FOCAL_LENGTH));
+    // vec4 B( b.x, b.y, b.z, (b.z / FOCAL_LENGTH));
+    float dA = A.y - (A.w * ymin);
+    float dB = B.y - (B.w * ymin);
+    // cout << "      A z value: " << A.z << endl;
+    // cout << "      B z value: " << B.z << endl;
+    // cout << "      dA: " << dA << endl;
+    // cout << "      dB: " << dB << endl;
+    // cout << "      ------- " << endl;
+
+
+    if((dA >= 0) && (dB >= 0)){
+      //both inside
+      //cout << "flag inside" << endl;
+      //cout << "B: " << B.x << ", " << B.y << ", " << B.z << ", " << B.w << endl;
+      clippedV.push_back(B);
+    }
+    if((dA >= 0) && (dB < 0)){
+      //b outside
+      float t = dA / (dA-dB);
+      vec4 I = vec4(A + t*(B-A));
+      clippedV.push_back(I);
+    }
+    if((dA < 0) && (dB >= 0)){
+      //a outside
+      float t = dA / (dA-dB);
+      vec4 I = vec4(A + t*(B-A));
+      clippedV.push_back(I);
+      clippedV.push_back(B);
+    }
+  }
+  return clippedV;
+}
+
+vector<vec4> ytop(vector<vec4> v){
+  int num = v.size();
+  vector<vec4> clippedV;
+  float ymax = SCREEN_HEIGHT/2; //times z/f?
+  for(int i = 0; i < num; i++){
+    vec4 A = v[i];
+    vec4 B = v[(i+1)%num];
+    //convert to clip space
+    // vec4 A( a[i].x, a[i].y, a[i].z, (a[i].z / FOCAL_LENGTH));
+    // vec4 B( b[i].x, b[i].y, b[i].z, (b[i].z / FOCAL_LENGTH));
+    float dA = (A.w * ymax) - A.y;
+    float dB = (B.w * ymax) - B.y;
+    // cout << "      A z value: " << A.z << endl;
+    // cout << "      B z value: " << B.z << endl;
+    // cout << "      dA: " << dA << endl;
+    // cout << "      dB: " << dB << endl;
+    // cout << "      ------- " << endl;
+
+
+    if((dA >= 0) && (dB >= 0)){
+      //both inside
+      //cout << "flag inside" << endl;
+      //cout << "B: " << B.x << ", " << B.y << ", " << B.z << ", " << B.w << endl;
+      clippedV.push_back(B);
+    }
+    if((dA >= 0) && (dB < 0)){
+      //b outside
+      float t = dA / (dA-dB);
+      vec4 I = vec4(A + t*(B-A));
+      clippedV.push_back(I);
+    }
+    if((dA < 0) && (dB >= 0)){
+      //a outside
+      float t = dA / (dA-dB);
+      vec4 I = vec4(A + t*(B-A));
+      clippedV.push_back(I);
+      clippedV.push_back(B);
+    }
+  }
+  return clippedV;
+}
+
+vector<vec4> zfront(vector<vec4> v){
+  int num = v.size();
+  vector<vec4> clippedV;
+  float zmin = 1.2;
+  for(int i = 0; i < num; i++){
+    vec4 A = v[i];
+    vec4 B = v[(i+1)%num];
+    float dA = A.z - zmin;
+    float dB = B.z - zmin;
+    // cout << "      A z value: " << A.z << endl;
+    // cout << "      B z value: " << B.z << endl;
+    // cout << "      dA: " << dA << endl;
+    // cout << "      dB: " << dB << endl;
+    // cout << "      ------- " << endl;
+
+
+    if((dA >= 0) && (dB >= 0)){
+      //both inside
+      //cout << "flag inside" << endl;
+      //cout << "B: " << B.x << ", " << B.y << ", " << B.z << ", " << B.w << endl;
+      clippedV.push_back(B);
+    }
+    if((dA >= 0) && (dB < 0)){
+      //b outside
+      float t = dA / (dA-dB);
+      vec4 I = vec4(A + t*(B-A));
+      clippedV.push_back(I);
+    }
+    if((dA < 0) && (dB >= 0)){
+      //a outside
+      float t = dA / (dA-dB);
+      vec4 I = vec4(A + t*(B-A));
+      clippedV.push_back(I);
+      clippedV.push_back(B);
+    }
+  }
+  return clippedV;
+}
+
+vector<vec4> zback(vector<vec4> v){
+  int num = v.size();
+  vector<vec4> clippedV;
+  float zmax = 5;
+  for(int i = 0; i < num; i++){
+    vec4 A = v[i];
+    vec4 B = v[(i+1)%num];
+    float dA = zmax - A.z;
+    float dB = zmax - B.z;
+    // cout << "      A z value: " << A.z << endl;
+    // cout << "      B z value: " << B.z << endl;
+    // cout << "      dA: " << dA << endl;
+    // cout << "      dB: " << dB << endl;
+    // cout << "      ------- " << endl;
+
+    if((dA >= 0) && (dB >= 0)){
+      //both inside
+      clippedV.push_back(B);
+    }
+    if((dA >= 0) && (dB < 0)){
+      float t = dA / (dA-dB);
+      vec4 I = vec4(A + t*(B-A));
+      clippedV.push_back(I);
+    }
+    if((dA < 0) && (dB >= 0)){
+      float t = dA / (dA-dB);
+      vec4 I = vec4(A + t*(B-A));
+      clippedV.push_back(I);
+      clippedV.push_back(B);
+    }
+  }
+  return clippedV;
+}
+
+
+// vector<vec4> zclipping(vector<Vertex>& v)
+// {
+//   //convert v to homogeneous
+//   vector<vec4> hv;
+//   vec4 temp;
+//   for(int i = 0; i < 3; i++){
+//     temp = vec4(v[i].position.x, v[i].position.y, v[i].position.z, v[i].position.z/FOCAL_LENGTH);
+//     hv.push_back(temp);
+//   }
+//
+//   float zmax = 5;
+//   float zmin = 0.5;
+//
+//   for(int i = 0; i < 3; i++){
+//     vec4 a = hv[j]
+//     vec4 b = hv[(j + 1) % 3];
+//
+//     bool a_in;
+//     bool b_in;
+//
+//     float ad1 = a.z-zMax;
+//     float ad2 = zMin-a.z;
+//
+//     float bd1 = b.z-zMax;
+//     float bd2 = zMin-b.z;
+//
+//     if(ad1 < 0 && ad2 < 0){
+//       //a is inside
+//       //add a to list of triangles?
+//       a_in = true;
+//     }
+//     else{
+//       a_in = false;
+//       if(ad1 >= 0){
+//         //too far away
+//         //clip a.z to zmax
+//         a.z = zmax;
+//
+//
+//       }
+//       else{
+//         //too close
+//         //clip to zmin
+//
+//       }
+//     }
+//
+//     if(bd1 < 0 && bd2 < 0){
+//       //b is inside
+//       //add b to list of triangles?
+//       b_in = true;
+//     }
+//     else{
+//       b_in = false;
+//       if(bd1 >= 0){
+//         //too far away
+//         //clip to zmax
+//
+//       }
+//       else{
+//         //too close
+//         //clip to zmin
+//
+//       }
+//     }
+//   }
+//   //push clipped triangle
+//
+// }
 
 void DrawPolygon( screen* screen, const vector<Vertex>& vertices, vec3 color, vec4 cameraPos )
 {
        int V = vertices.size();
        vector<Pixel> vertexPixels( V );
+
+       // -----*** CLIPPING***-----
+
+
+       //return list of clipped vertices as pixels
+       //--------------------------
+
        for( int i=0; i<V; ++i ){
          // vertexPixels[i].illumination = color;
          VertexShader( vertices[i], vertexPixels[i], cameraPos );
@@ -378,9 +937,9 @@ void VertexShader( const Vertex& v, Pixel& p, vec4 cameraPos )
 {
 
   // translate first: P' = P - C
-  float x = v.position.x - cameraPos.x;
-  float y = v.position.y - cameraPos.y;
-  float z = v.position.z - cameraPos.z;
+  float x = v.position.x;
+  float y = v.position.y;
+  float z = v.position.z;
   // then rotate:
   if(z!=0){
     p.zinv = 1/z;
@@ -409,7 +968,9 @@ void PixelShader( screen* screen, const Pixel& p, vec3 color )
     depthBuffer[x][y] = p.zinv;
     vec3 illumination;
     illumination = DirectLight(p);
-    PutPixelSDL(screen, x, y, illumination*color);
+    if(p.pos3d.z > 1){
+      PutPixelSDL(screen, x, y, illumination*color);
+    }
     // cout << "color in PixelShader (" << color.x << ", " << color.y << ", " << color.z << ")" << endl;
     // if( (color.x*p.illumination.x > 1) || (color.y*p.illumination.y > 1) || (color.z*p.illumination.z > 1) ){
     //   cout << "ill*color in PixelShader(" << color.x*p.illumination.x << ", " << color.y*p.illumination.y << ", " << color.z*p.illumination.z << ")" << endl;
@@ -457,6 +1018,36 @@ void updateR( int angle, int axis ){
 
 }
 
+void transformWorld(vector<Triangle>& t, float shift, int axis){
+  if(axis == 0) lightPos.x += shift;
+  else if (axis == 1) lightPos.y += shift;
+  else if (axis == 2) lightPos.z += shift;
+
+  for(int i = 0; i < t.size(); i++){
+    if(axis == 0){
+      //x
+      t[i].v0.x += shift;
+      t[i].v1.x += shift;
+      t[i].v2.x += shift;
+      t[i].ComputeNormal();
+    }
+    else if(axis == 1){
+      //y
+      t[i].v0.y += shift;
+      t[i].v1.y += shift;
+      t[i].v2.y += shift;
+      t[i].ComputeNormal();
+    }
+    else if(axis == 2){
+      //z
+      t[i].v0.z += shift;
+      t[i].v1.z += shift;
+      t[i].v2.z += shift;
+      t[i].ComputeNormal();
+    }
+  }
+}
+
 void updateWorld(vector<Triangle>& t){
 
   vec4 newv0;
@@ -464,26 +1055,36 @@ void updateWorld(vector<Triangle>& t){
   vec4 newv2;
   vec4 newnormal;
 
-  vec3 newlight( lightPos.x * R[0][0] + lightPos.y * R[0][1] + lightPos.z * R[0][2],
-                 lightPos.x * R[1][0] + lightPos.y * R[1][1] + lightPos.z * R[1][2],
-                 lightPos.x * R[2][0] + lightPos.y * R[2][1] + lightPos.z * R[2][2] );
+  float lightznormal = lightPos.z-3;
 
+  vec3 newlight( lightPos.x * R[0][0] + lightPos.y * R[0][1] + lightznormal * R[0][2],
+                 lightPos.x * R[1][0] + lightPos.y * R[1][1] + lightznormal * R[1][2],
+                 lightPos.x * R[2][0] + lightPos.y * R[2][1] + lightznormal * R[2][2] );
+
+  newlight.z += 3;
   lightPos = newlight;
 
   for(int i = 0; i < t.size(); i++){
-    newv0.x = t[i].v0.x * R[0][0] + t[i].v0.y * R[0][1] + t[i].v0.z * R[0][2];
-    newv0.y = t[i].v0.x * R[1][0] + t[i].v0.y * R[1][1] + t[i].v0.z * R[1][2];
-    newv0.z = t[i].v0.x * R[2][0] + t[i].v0.y * R[2][1] + t[i].v0.z * R[2][2];
+    float z0normal = t[i].v0.z - 3;
+    float z1normal = t[i].v1.z - 3;
+    float z2normal = t[i].v2.z - 3;
+
+    newv0.x = t[i].v0.x * R[0][0] + t[i].v0.y * R[0][1] + z0normal  * R[0][2];
+    newv0.y = t[i].v0.x * R[1][0] + t[i].v0.y * R[1][1] + z0normal * R[1][2];
+    newv0.z = t[i].v0.x * R[2][0] + t[i].v0.y * R[2][1] + z0normal * R[2][2];
+    newv0.z += 3;
     newv0.w = 1;
 
-    newv1.x = t[i].v1.x * R[0][0] + t[i].v1.y * R[0][1] + t[i].v1.z * R[0][2];
-    newv1.y = t[i].v1.x * R[1][0] + t[i].v1.y * R[1][1] + t[i].v1.z * R[1][2];
-    newv1.z = t[i].v1.x * R[2][0] + t[i].v1.y * R[2][1] + t[i].v1.z * R[2][2];
+    newv1.x = t[i].v1.x * R[0][0] + t[i].v1.y * R[0][1] + z1normal * R[0][2];
+    newv1.y = t[i].v1.x * R[1][0] + t[i].v1.y * R[1][1] + z1normal * R[1][2];
+    newv1.z = t[i].v1.x * R[2][0] + t[i].v1.y * R[2][1] + z1normal * R[2][2];
+    newv1.z += 3;
     newv1.w = 1;
 
-    newv2.x = t[i].v2.x * R[0][0] + t[i].v2.y * R[0][1] + t[i].v2.z * R[0][2];
-    newv2.y = t[i].v2.x * R[1][0] + t[i].v2.y * R[1][1] + t[i].v2.z * R[1][2];
-    newv2.z = t[i].v2.x * R[2][0] + t[i].v2.y * R[2][1] + t[i].v2.z * R[2][2];
+    newv2.x = t[i].v2.x * R[0][0] + t[i].v2.y * R[0][1] + z2normal * R[0][2];
+    newv2.y = t[i].v2.x * R[1][0] + t[i].v2.y * R[1][1] + z2normal * R[1][2];
+    newv2.z = t[i].v2.x * R[2][0] + t[i].v2.y * R[2][1] + z2normal * R[2][2];
+    newv2.z += 3;
     newv2.w = 1;
 
     newnormal.x = t[i].normal.x * R[0][0] + t[i].normal.y * R[0][1] + t[i].normal.z * R[0][2];
@@ -499,7 +1100,7 @@ void updateWorld(vector<Triangle>& t){
 }
 
 /*Place updates of parameters here*/
-bool Update(vec4& cameraPos)
+bool Update(vec4& cameraPos, vector<Triangle>& triangles)
 {
   static int t = SDL_GetTicks();
   /* Compute frame time */
@@ -524,29 +1125,30 @@ bool Update(vec4& cameraPos)
 	    switch(key_code)
 	      {
 	      case SDLK_w:
-        		/* Move camera forward */
-            cameraPos.y -= .15;
+        		/* Move camera up */
+            transformWorld(triangles,-0.1,1);
         		break;
 	      case SDLK_s:
         		/* Move camera backwards */
-            cameraPos.y += .15;
+            transformWorld(triangles,0.1,1);
         		break;
 	      case SDLK_a:
         		/* Move camera left */
-            cameraPos.x += .15;
+            transformWorld(triangles,-0.1,0);
         		break;
 	      case SDLK_d:
         		/* Move camera right */
-            cameraPos.x -= .15;
+            transformWorld(triangles,0.1,0);
+
         		break;
         case SDLK_q:
             /* Move camera forwards */
-            cameraPos.z += .15;
+            transformWorld(triangles,0.1,2);
             break;
         case SDLK_e:
-    /* Move camera backwards */
-    cameraPos.z -= .15;
-    break;
+            /* Move camera backwards */
+            transformWorld(triangles,-0.1,2);
+            break;
 
     case SDLK_i:
       /* rotate world forward x */
