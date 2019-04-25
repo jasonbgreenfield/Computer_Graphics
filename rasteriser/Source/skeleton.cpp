@@ -133,7 +133,7 @@ void Draw(screen* screen, vec4 cameraPos, vector<Triangle>& triangles)
 
   for( int y=0; y<SCREEN_HEIGHT; ++y ){
     for( int x=0; x<SCREEN_WIDTH; ++x ){
-       depthBuffer[y][x] = 0;
+       depthBuffer[y][x] = -100;
     }
   }
 
@@ -146,7 +146,7 @@ void Draw(screen* screen, vec4 cameraPos, vector<Triangle>& triangles)
 
   cout << "FLAG 1 -- Start Clipping" << endl;
 
-  for( int i=0; i<triangles.size(); i++){
+  for( int i=0; i<30; i++){
 
     //for each triangle, clip the points
     v.clear();
@@ -154,18 +154,18 @@ void Draw(screen* screen, vec4 cameraPos, vector<Triangle>& triangles)
     v.push_back(triangles[i].v1);
     v.push_back(triangles[i].v2);
 
-    newvA = zfront(v);
-    cout << "   z front size: " << newvA.size() << endl;
-    newvB = zback(newvA);
-    cout << "   z back size: " << newvB.size() << endl;
-    newvA = xleft(newvB);
-    cout << "   x left size: " << newvA.size() << endl;
+    // newvA = zfront(v);
+    // cout << "   z front size: " << newvA.size() << endl;
+    // newvB = zback(v);
+    // //cout << "   z back size: " << newvB.size() << endl;
+    newvA = xleft(v);
+    //cout << "   x left size: " << newvA.size() << endl;
     newvB = xright(newvA);
-    cout << "   x right size: " << newvB.size() << endl;
+    //cout << "   x right size: " << newvB.size() << endl;
     newvA = ybottom(newvB);
-    cout << "   x left size: " << newvA.size() << endl;
+    //cout << "   x left size: " << newvA.size() << endl;
     newvB = ytop(newvA);
-    cout << "   x right size: " << newvB.size() << endl;
+    //cout << "   x right size: " << newvB.size() << endl;
     if(newvB.size() < 3){
       //cull
       cout << "   CULL triangle " << i << endl;
@@ -250,188 +250,6 @@ void Draw(screen* screen, vec4 cameraPos, vector<Triangle>& triangles)
     }
 
 }
-//
-// void setP_N(vector<vec4>& P, vector<vec4>& n)
-// {
-//   vec4 point;
-//   vec4 pnormal;
-//
-//   //x left
-//   point = vec4( -1, 0, 0, 0/FOCAL_LENGTH );
-//   pnormal = vec4( 1, 0, 0, 1);
-//   P.push_back(point);
-//   n.push_back(pnormal);
-//
-//   //x right
-//   point = vec4( 1, 0, 0, 0/FOCAL_LENGTH );
-//   pnormal = vec4( -1, 0, 0, 1);
-//   P.push_back(point);
-//   n.push_back(pnormal);
-//
-//   //y bottom
-//   point = vec4( 0, -1, 0, 0/FOCAL_LENGTH );
-//   pnormal = vec4( 0, 1, 0, 1);
-//   P.push_back(point);
-//   n.push_back(pnormal);
-//
-//   //y top
-//   point = vec4( 0, 1, 0, 0/FOCAL_LENGTH );
-//   pnormal = vec4( 0, -1, 0, 1);
-//   P.push_back(point);
-//   n.push_back(pnormal);
-//
-//   //z back
-//   point = vec4( 0, 0, 1, 1/FOCAL_LENGTH );
-//   pnormal = vec4( 0, 0, -1, 1);
-//   P.push_back(point);
-//   n.push_back(pnormal);
-//
-//   //z front
-//   point = vec4( 0, 0, -1, -1/FOCAL_LENGTH );
-//   pnormal = vec4( 0, 0, 1, 1);
-//   P.push_back(point);
-//   n.push_back(pnormal);
-// }
-//
-// void clip(vector<Vertex>& v, vector<Pixel>& p)
-// {
-//
-//   // float xmax = width;
-//   // float ymax = height;
-//   vector<clipV> v2;
-//   for(int i = 0; i < 3; i++){
-//     clipV temp;
-//     temp.position = v[i].position;
-//
-//   }
-//
-//   float xmax = float(width)/2;
-//   float ymax = float(height)/2;
-//   float zmax = 1.5;
-//
-//   vector<vec4> P;
-//   vector<vec4> n;
-//
-//   setP_N(P,n);
-//
-//   vector<clipV> clippedV;
-//
-//
-//   int out = 0;
-//   int in = 0;
-//
-//   for(int i = 0; i < 6; i++){
-//     for(int j = 0; j < 3; j++){
-//
-//       vec4 a = v[j].positon;
-//       vec4 b = v[(j + 1) % 3].position;
-//       //convert to homogeneous
-//       vec4 A( a[j].x, a[j].y, a[j].z, (a[j].z / FOCAL_LENGTH));
-//       vec4 B( b[j].x, b[j].y, b[j].z, (b[j].z / FOCAL_LENGTH));
-//
-//       //for each plane, calculate d1 and d2
-//       vec4 dA = A - P[j];
-//       vec4 dB = B - P[j];
-//       float d1 = ( dA.x * n[j].x ) + ( dA.y * n[j].y ) + ( dA.z * n[j].z ) + ( dA.z * n[j].z );
-//       float d2 = ( dB.x * n[j].x ) + ( dB.y * n[j].y ) + ( dB.z * n[j].z ) + ( dB.z * n[j].z );
-//
-//       if((d1>=0 && d2>0)||(d2>=0 && d1>0)){
-//         //line inside
-//         cout << "both inside" << endl;
-//         in++;
-//       }
-//       else if((d1<=0 && d2<0)||(d2<=0 && d1<0)){
-//         //line outside
-//         cout << "both outside" << endl;
-//         out++;
-//       }
-//       else if(d1>0 && d2<0){
-//         //A inside, B outside
-//         //calculate I
-//         //add A and I to clipped points list
-//         cout << "A in, B out" << endl;
-//
-//         float t = d1 / (d1-d2);
-//         vec4 I = A + t*(B-A);
-//
-//         clipV anchor_point;
-//         anchor_point.position = A;
-//         anchor_point.new = false;
-//         clippedV.push_back(anchor_point)
-//
-//         clipV clipped_point;
-//         clipped_point.position = I;
-//         clipped_point.new = true;
-//         clippedV.push_back(clipped_point);
-//
-//       }
-//       else if(d1<0 && d2>0){
-//         //B inside, A outside
-//         //calculate I
-//         //add B and I to clipped points list
-//         cout << "A out, B in" << endl;
-//
-//         float t = d1 / (d1-d2);
-//         vec4 I = A + t*(B-A);
-//
-//         clipV anchor_point;
-//         anchor_point.position = B;
-//         anchor_point.new = false;
-//         clippedV.push_back(anchor_point)
-//
-//         clipV clipped_point;
-//         clipped_point.position = I;
-//         clipped_point.new = true;
-//         clippedV.push_back(clipped_point);
-//       }
-//       else{
-//         cout << "uh-oh" << endl;
-//       }
-//     }
-//     removeDuplicates(clippedV);
-//     if(out==3){
-//       break;
-//     }
-//     if(clippedV.size() > )
-//   }
-//
-//
-//     if(out == 3){
-//       //all outside
-//       //return flag saying don't draw
-//     }
-//     else if(in == 3){
-//       //all inside
-//       //return original points
-//     }
-//     if(clippedV.size() > 3){
-//       //split by new points
-//       //one triangle has both new points and
-//     }
-//
-// }
-//
-// void removeDuplicates(vector<clipV>& v)
-// {
-//   vector<clipV> newv;
-//   bool match = false;
-//
-//   for(int i = 0; i < v.size(); i++){
-//     match = false;
-//     //if v[i] doesn't exist in new v, then add it
-//     for(int j = 0; j < newv.size(); j++){
-//       if(v[i].position == newv[j].position){
-//         match = true;
-//       }
-//     }
-//     if(!match){
-//       newv.pushback(v[i]);
-//     }
-//   }
-//   v = newv;
-//
-// }
-//
 
 vector<vec4> xleft(vector<vec4> v){
   int num = v.size();
@@ -604,7 +422,7 @@ vector<vec4> ytop(vector<vec4> v){
 vector<vec4> zfront(vector<vec4> v){
   int num = v.size();
   vector<vec4> clippedV;
-  float zmin = 1.2;
+  float zmin = 0;
   for(int i = 0; i < num; i++){
     vec4 A = v[i];
     vec4 B = v[(i+1)%num];
@@ -674,77 +492,6 @@ vector<vec4> zback(vector<vec4> v){
   return clippedV;
 }
 
-
-// vector<vec4> zclipping(vector<Vertex>& v)
-// {
-//   //convert v to homogeneous
-//   vector<vec4> hv;
-//   vec4 temp;
-//   for(int i = 0; i < 3; i++){
-//     temp = vec4(v[i].position.x, v[i].position.y, v[i].position.z, v[i].position.z/FOCAL_LENGTH);
-//     hv.push_back(temp);
-//   }
-//
-//   float zmax = 5;
-//   float zmin = 0.5;
-//
-//   for(int i = 0; i < 3; i++){
-//     vec4 a = hv[j]
-//     vec4 b = hv[(j + 1) % 3];
-//
-//     bool a_in;
-//     bool b_in;
-//
-//     float ad1 = a.z-zMax;
-//     float ad2 = zMin-a.z;
-//
-//     float bd1 = b.z-zMax;
-//     float bd2 = zMin-b.z;
-//
-//     if(ad1 < 0 && ad2 < 0){
-//       //a is inside
-//       //add a to list of triangles?
-//       a_in = true;
-//     }
-//     else{
-//       a_in = false;
-//       if(ad1 >= 0){
-//         //too far away
-//         //clip a.z to zmax
-//         a.z = zmax;
-//
-//
-//       }
-//       else{
-//         //too close
-//         //clip to zmin
-//
-//       }
-//     }
-//
-//     if(bd1 < 0 && bd2 < 0){
-//       //b is inside
-//       //add b to list of triangles?
-//       b_in = true;
-//     }
-//     else{
-//       b_in = false;
-//       if(bd1 >= 0){
-//         //too far away
-//         //clip to zmax
-//
-//       }
-//       else{
-//         //too close
-//         //clip to zmin
-//
-//       }
-//     }
-//   }
-//   //push clipped triangle
-//
-// }
-
 void DrawPolygon( screen* screen, const vector<Vertex>& vertices, vec3 color, vec4 cameraPos )
 {
        int V = vertices.size();
@@ -792,15 +539,15 @@ void DrawPolygonRows( screen* screen, const vector<Pixel>& leftPixels, const vec
     for(int j = 0; j < width; j++){
       //cout << "          check pixel depth for pixel " << j << " of row " << i
            //<< " , xyz: "<< row[j].x << "," << row[j].y << "," << row[j].zinv << endl;
-      if(row[j].zinv > depthBuffer[row[j].x][row[j].y]){
+      //if(row[j].zinv > depthBuffer[row[j].x][row[j].y]){
         //cout << "          draw pixel & update buffer start" << endl;
 
 
-        PixelShader( screen, row[j], color);
-        depthBuffer[row[j].x][row[j].y] = row[j].zinv;
+      PixelShader( screen, row[j], color);
+        //depthBuffer[row[j].x][row[j].y] = row[j].zinv;
         //cout << "          finished drawing pixel" << endl;
 
-      }
+      //}
     }
   }
 }
@@ -968,9 +715,7 @@ void PixelShader( screen* screen, const Pixel& p, vec3 color )
     depthBuffer[x][y] = p.zinv;
     vec3 illumination;
     illumination = DirectLight(p);
-    if(p.pos3d.z > 1){
-      PutPixelSDL(screen, x, y, illumination*color);
-    }
+    PutPixelSDL(screen, x, y, illumination*color);
     // cout << "color in PixelShader (" << color.x << ", " << color.y << ", " << color.z << ")" << endl;
     // if( (color.x*p.illumination.x > 1) || (color.y*p.illumination.y > 1) || (color.z*p.illumination.z > 1) ){
     //   cout << "ill*color in PixelShader(" << color.x*p.illumination.x << ", " << color.y*p.illumination.y << ", " << color.z*p.illumination.z << ")" << endl;
