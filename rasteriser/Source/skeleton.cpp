@@ -154,11 +154,11 @@ void Draw(screen* screen, vec4 cameraPos, vector<Triangle>& triangles)
     v.push_back(triangles[i].v1);
     v.push_back(triangles[i].v2);
 
-    // newvA = zfront(v);
-    // cout << "   z front size: " << newvA.size() << endl;
+    newvB = zfront(v);
+    //cout << "   z front size: " << newvA.size() << endl;
     // newvB = zback(v);
     // //cout << "   z back size: " << newvB.size() << endl;
-    newvA = xleft(v);
+    newvA = xleft(newvB);
     //cout << "   x left size: " << newvA.size() << endl;
     newvB = xright(newvA);
     //cout << "   x right size: " << newvB.size() << endl;
