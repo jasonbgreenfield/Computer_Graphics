@@ -40,7 +40,7 @@ bool ClosestIntersection( vec4 start,
                           vec4 dir,
                           const vector<Triangle>& triangles,
                           Intersection& closestIntersection );
-vec3 DirectLight(Intersection interS, vec4 lightPos);
+vec3 DirectLight(Intersection interS, vec4 lightPos, vector<Triangle> triangles);
 
 
 const float focalLength = 226.274;
@@ -98,7 +98,7 @@ void Draw(screen* screen, vec4 cameraPos, vec4 lightPos, vector<Triangle>& t){
       if( ClosestIntersection(cameraPos, dir, t, closest) ){
         //final illumination: direct light, shadows, and indirectLight approxomation
         vec3 indirectLight = 0.5f*vec3( 1, 1, 1 );
-        PutPixelSDL(screen, i, j, t[closest.triangleIndex].color * (DirectLight(closest, lightPos) + indirectLight) ); // this is how we're diong it with B&W illumination
+        PutPixelSDL(screen, i, j, t[closest.triangleIndex].color * (DirectLight(closest, lightPos, t) + indirectLight) ); // this is how we're diong it with B&W illumination
 
       }
       else{
@@ -235,7 +235,7 @@ bool ClosestIntersection( vec4 start, vec4 dir, const vector<Triangle>& triangle
               (v0.z + (x.y*e1.z) + (x.z*e2.z)),
               1);
 
-    if( (x.x >= 0) && (x.y > 0) && (x.z > 0) && ((x.y + x.z)<1) ){
+    if( (x.x >= 0) && (x.y >= 0) && (x.z >= 0) && ((x.y + x.z)<=1) ){
         toReturn = true;
         float tempDist = x.x;
 
@@ -253,11 +253,9 @@ bool ClosestIntersection( vec4 start, vec4 dir, const vector<Triangle>& triangle
   return toReturn;
 }
 
-vec3 DirectLight(Intersection interS, vec4 lightPos){
+vec3 DirectLight(Intersection interS, vec4 lightPos, vector<Triangle> triangles){
   vec3 toReturn(0, 0, 0);
   vec3 lightColor = 14.f * vec3( 1, 1, 1 );
-  vector<Triangle> triangles;
-  LoadTestModel( triangles );
 
   vec4 rCarrot(lightPos.x - interS.position.x,
          lightPos.y - interS.position.y,
